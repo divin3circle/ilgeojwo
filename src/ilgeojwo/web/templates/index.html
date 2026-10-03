@@ -56,6 +56,13 @@
 
   <div id="out"></div>
 
+  <p class="disclaimer">
+    This is a reading aid, <strong>not medical advice</strong>. It does not know
+    your medical history, it does not diagnose, and it never recommends a dose.
+    It tells you what is printed on the box and flags ingredients against a list
+    you control. Always confirm with your pharmacist or doctor.
+  </p>
+
 <script>
 const f = document.getElementById('f'), out = document.getElementById('out');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
@@ -77,6 +84,20 @@ f.addEventListener('submit', async e => {
     return;
   }
   const c = d.card;
+  if (c.warnings !== undefined) {
+    out.innerHTML = `<div class="card">
+      ${row('Product', c.product_name)}
+      ${row('Kind', c.kind)}
+      ${c.ingredients_found
+          ? row('Ingredients', c.ingredients.join(', '))
+          : '<div class="warn">Could not identify the ingredients in this photo. Do not rely on this. Show the box to the pharmacist.</div>'}
+      ${row('Dosage', c.dosage)}
+      ${c.warnings.map(w => `<div class="warn">${esc(w.message)}<br><small>matched: ${esc(w.matched.join(', '))} · seen in: ${esc(w.found_in.join(' + '))}</small></div>`).join('')}
+      <div class="disclaimer">Not medical advice. A matched name does not prove the box contains it — Korean packaging names other drugs in its precautions. Confirm with your pharmacist.</div>
+      <details><summary>Original Korean</summary><pre>${esc(d.ocr_text)}</pre></details>
+    </div>`;
+    return;
+  }
   out.innerHTML = `<div class="card">
     ${row('What this is', c.doc_type)}
     ${row('From', c.sender)}

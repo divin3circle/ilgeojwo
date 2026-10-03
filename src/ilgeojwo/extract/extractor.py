@@ -6,9 +6,11 @@ import json
 import re
 from typing import Protocol
 
+from ..risk.matcher import match_risks
+from ..risk.rules import Rule
 from .dates import parse_korean_date
-from .prompts import DOCUMENT, DOCUMENT_RETRY
-from .schema import ABSENT, DocumentCard
+from .prompts import DOCUMENT, DOCUMENT_RETRY, LABEL, LABEL_RETRY
+from .schema import ABSENT, LABEL_ABSENT, DocumentCard, LabelCard
 
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
@@ -80,3 +82,29 @@ class OllamaClient:
                 f"  Start the server with:   ollama serve\n"
                 f"  Install the model with:  ollama pull {self._model}"
             ) from exc
+
+
+def _to_label_card(data: dict, ocr_text: str, rules: tuple[Rule, ...]) -> LabelCard:
+    ingredients = [str(i).strip() for i in (data.get("ingredients") or []) if str(i).strip()]
+    # The raw OCR text is passed in regardless of what the model returned, so a
+    # model that missed an ingredient cannot suppress its warning (spec §5.2).
+    warnings = match_risks(ingredients, ocr_text, rules)
+    return LabelCard(
+        product_name=(data.get("product_name") or "").strip() or LABEL_ABSENT["product_name"],
+        kind=(data.get("kind") or "").strip() or LABEL_ABSENT["kind"],
+        ingredients=ingredients,
+        dosage=(data.get("dosage") or "").strip() or LABEL_ABSENT["dosage"],
+        warnings=[{"rule_id": w.rule_id, "severity": w.severity,
+                   "message": w.message, "matched": list(w.matched),
+                   "found_in": list(w.found_in)} for w in warnings],
+        ingredients_found=bool(ingredients),
+    )
+
+
+def extract_label(ocr_text: str, llm: LlmClient,
+                  rules: tuple[Rule, ...]) -> tuple[LabelCard, str]:
+    for prompt in (LABEL, LABEL_RETRY):
+        if (data := _parse_json(llm.complete(prompt.format(text=ocr_text)))) is not None:
+            return _to_label_card(data, ocr_text, rules), "ok"
+    # Even with no usable model output at all, the box is still screened.
+    return _to_label_card({}, ocr_text, rules), "partial"

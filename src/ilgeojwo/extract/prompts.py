@@ -25,3 +25,26 @@ Use "" for anything not present in the text.
 
 Korean text:
 {text}"""
+
+LABEL = """You are reading text scanned from Korean product or medicine packaging.
+Transcribe and list only what is literally printed. Do not interpret.
+
+Return a single JSON object with exactly these keys:
+  product_name - the product name in English, or ""
+  kind         - "medicine" or "food", or ""
+  ingredients  - a list of active ingredient names exactly as printed, or []
+  dosage       - the dosage instructions in English, or ""
+
+List every active ingredient you can see, including ones you do not recognise.
+If a field is not present, use "" or []. Never guess.
+
+Korean text:
+{text}"""
+
+LABEL_RETRY = """Your previous reply was not valid JSON.
+
+Reply with ONE valid JSON object and nothing else. No prose, no markdown fence.
+Keys: product_name, kind, ingredients, dosage.
+
+Korean text:
+{text}"""

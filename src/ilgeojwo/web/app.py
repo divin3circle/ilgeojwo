@@ -12,8 +12,11 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from ..config import Config
-from ..extract.extractor import LlmClient, ModelUnavailable, extract_document
+from ..extract.extractor import (
+    LlmClient, ModelUnavailable, extract_document, extract_label,
+)
 from ..ocr.reader import OcrEngine, read_korean
+from ..risk.rules import load_rules
 from ..store.db import list_scans, save_scan
 
 UNREADABLE = "Couldn't read this — try more light, a flatter angle, or move closer."
@@ -24,6 +27,9 @@ _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient) -> FastAPI:
     app = FastAPI(title="읽어줘")
     uploads = config.db_path.parent / "uploads"
+    # Loaded once, at startup, so a malformed rule file fails loudly here rather
+    # than silently producing zero warnings on her first real scan.
+    rules = load_rules(config.rules_path)
 
     @app.get("/")
     def index(request: Request):
@@ -52,7 +58,10 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient) -> FastAPI
                                  "card": None, "ocr_text": ocr.text})
 
         try:
-            card, status = extract_document(ocr.text, llm)
+            if lens == "label":
+                card, status = extract_label(ocr.text, llm, rules)
+            else:
+                card, status = extract_document(ocr.text, llm)
         except ModelUnavailable as exc:
             raise HTTPException(503, str(exc)) from exc
         card_json = card.model_dump_json()
