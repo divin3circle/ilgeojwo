@@ -55,10 +55,16 @@ false negative.
 **That guarantee is bounded, and the bound matters.** It holds for ingredient
 names that are in the rule file, however badly the OCR mangles them — line
 breaks, hyphenation, soft hyphens, zero-width characters, full-width Latin,
-decomposed Hangul. It does **not** hold for an ingredient the rule file does not
-list, or for OCR that substitutes a similar-looking Hangul syllable
-(`이부프로펜` read as `이부프로팬`). There is no fuzzy matching tier. Treat a
-clean result as "nothing on my list was found", never as "this is safe."
+decomposed Hangul — and for **one** substituted character in a name of at least
+four, because the OCR measurably does that (see
+[`docs/spike-findings.md`](docs/spike-findings.md): it returned `연장히가` for
+`연장허가` on a clean render). Those approximate matches are labelled
+`POSSIBLE — the OCR may have misread this`.
+
+It does **not** hold for an ingredient the rule file does not list, for two or
+more substitutions, or for a short name misread. Treat a clean result as
+"nothing on my list was found", never as "this is safe" — the tool says exactly
+that on screen rather than leaving you to infer it.
 
 A matched name also does not prove the box *contains* that ingredient — Korean
 packaging names other drugs in its 주의사항 (precautions) paragraph. That is why

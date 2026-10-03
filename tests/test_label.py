@@ -117,3 +117,17 @@ def test_the_page_carries_the_permanent_medical_disclaimer(tmp_path):
     page = _client(tmp_path, "x").get("/").text.lower()
     assert "not medical advice" in page
     assert "pharmacist" in page
+
+
+def test_an_approximate_match_reaches_the_card_flagged_as_approximate(tmp_path):
+    """A misread ingredient must still warn her, and must say it is a guess."""
+    card, _ = extract_label("성분: 이부프로팬 200mg", FakeLlm("{}"), RULES)
+    assert [w["rule_id"] for w in card.warnings] == ["nsaid"]
+    assert card.warnings[0]["approximate"] is True
+
+
+def test_the_page_never_presents_an_empty_warning_list_as_clearance(tmp_path):
+    """OCR substitutes syllables and the rule list only covers what is in it, so
+    'nothing matched' is not 'this is safe'."""
+    page = _client(tmp_path, "x").get("/").text.lower()
+    assert "not the same as safe" in page

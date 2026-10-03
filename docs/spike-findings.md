@@ -48,3 +48,80 @@ With her real photos not yet available, `/tmp/ilgeojwo/synthetic_doc.png` was
 rendered locally (AppleSDGothicNeo, 34pt) standing in for an immigration notice:
 sender, an action, `납부금액: 60,000원`, and `납부기한: 2026년 10월 5일`. A clean
 render is a weak proxy for a phone photo and proves nothing about robustness.
+
+---
+
+## Resolution: PaddleOCR-VL is unusable; EasyOCR is the default
+
+### PaddleOCR-VL-1.6 — three failures, the third fatal
+
+1. `ImportError: torchvision` at `AutoProcessor.from_pretrained` — fixed by pinning it.
+2. `ImportError: einops` — same, fixed.
+3. `KeyError: 'default'` from `ROPE_INIT_FUNCTIONS[self.rope_type]` inside the
+   model's `trust_remote_code` modeling file.
+
+The third is not fixable by installing anything. I checked the registry in
+transformers `v5.0.0`, `v5.5.0` and `v5.10.0`:
+
+```
+v5.0.0    linear dynamic yarn longrope llama3
+v5.5.0    linear dynamic yarn longrope llama3 proportional
+v5.10.0   linear dynamic yarn longrope llama3 proportional
+```
+
+No `'default'` in any of them — it was removed in the 5.0 major release — while
+the model card requires `transformers>=5.0.0` for exactly this backend. The
+published path cannot work on any supported version. Shimming it would mean
+writing rope-initialisation maths by inference with no reference output to check
+against, which is not a thing to guess at in a medical-adjacent tool.
+
+Weights did download in full (1,917,255,968 bytes, exact match) after the inline
+transformers download stalled and the `hf` CLI resumed it. Measured blob
+throughput from this machine was 173 KB/s; the HF metadata API answered in 1.6 s,
+so that was this connection, not the model.
+
+`PaddleOcrVlEngine` stays in the tree, selectable with
+`ILGEOJWO_OCR_ENGINE=paddleocr-vl`, in case upstream fixes it.
+
+### EasyOCR — measured
+
+| | |
+|---|---|
+| First `Reader(["ko","en"])` | 1047.9 s — download-dominated; models cache to `~/.EasyOCR` (~100 MB) |
+| OCR of one page, cached | 3.4 s |
+| Peak resident set | 1.14 GB — well inside the 3 GB budget |
+
+Output on `synthetic_doc.png`, against the known source:
+
+```
+source:  체류기간 연장허가 … 신청서를 … 납부금액: 60,000원 … 납부기한: 2026년 10월 5일
+easyocr: 체류기간 연장히가 … 신청서클 … 남부금액: 60,00o원 … 납부기한: 2026년 10월 5일
+```
+
+**The deadline is exact.** Three Hangul substitutions elsewhere: 허→히, 를→클,
+납→남, plus `0`→`o`. On a clean render.
+
+### What that measurement changed
+
+The code reviewer graded "no fuzzy matching tier" as **Minor** and I accepted it.
+This output re-grades it. Exact substring matching was the whole basis of the
+safety claim, and the engine demonstrably substitutes syllables on easy input —
+so `이부프로펜` read as `이부프로팬` would have produced no warning on a box that
+really does contain an NSAID.
+
+A single-substitution tier now runs when nothing matches exactly, for patterns of
+at least four characters, and its warnings are rendered as `POSSIBLE — the OCR may
+have misread this`. Short names stay exact-only so the tool does not cry wolf;
+longer spellings of the same drug (`인산코데인` for `코데인`) still carry it.
+
+Two false positives the tier introduced and how they are handled: a window
+straddling two ingredient-list entries is rejected (otherwise `["에", "페드린"]`
+matched `에페드린` one substitution away), and an exact hit always beats an
+approximate one for the same rule, so a clean match is never downgraded.
+
+### Golden run against the real stack
+
+4 of 6 cases pass, including the immigration document on **both** deadline
+(`2026-10-05`) and amount (`60,000`) — EXAONE recovered `60,000` from EasyOCR's
+`60,00o원`, which is the division of labour working as designed: the OCR reads
+badly, the language model cleans up, and neither is allowed near the safety call.

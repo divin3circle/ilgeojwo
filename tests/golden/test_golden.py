@@ -78,7 +78,8 @@ def test_no_image_without_a_date_ever_gets_a_deadline(name, stack):
     """Global Constraint: a deadline is never invented."""
     cfg, engine, llm, _ = stack
     want = json.loads((EXPECTED / f"{name}.json").read_text(encoding="utf-8"))
-    if want["lens"] != "document" or want["deadline"] is not None or not want["readable"]:
+    if (want["lens"] != "document" or want.get("deadline") is not None
+            or not want["readable"]):
         pytest.skip("only applies to readable documents with no real deadline")
     ocr = read_korean(_image_for(name), engine, cfg.min_hangul)
     card, _ = extract_document(ocr.text, llm)

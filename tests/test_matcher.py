@@ -192,3 +192,45 @@ def test_the_matcher_imports_nothing_that_could_reach_the_world():
         elif isinstance(node, ast.ImportFrom):
             imported.add((node.module or "").split(".")[0])
     assert imported <= {"__future__", "dataclasses", "normalize", "rules"}, imported
+
+
+@pytest.mark.parametrize("misread,expected", [
+    ("이부프로팬", "nsaid"),                    # 펜 -> 팬
+    ("이부프로텐", "nsaid"),
+    ("아스피릭", "nsaid"),
+    ("슈도에폐드린", "decongestant"),            # 페 -> 폐
+    ("클로르페니라빈", "sedating_antihistamine"),
+    ("디히드로코데임", "opioid_antitussive"),
+    ("ibuprofan", "nsaid"),
+])
+def test_a_single_syllable_misread_still_raises_an_approximate_warning(misread, expected):
+    """MEASURED, not hypothetical: on a clean synthetic render EasyOCR
+    substituted 허->히, 를->클 and 납->남. Exact matching alone would drop the
+    warning for a box that really does contain the ingredient."""
+    ws = match_risks([], f"성분: {misread} 200mg", RULES)
+    assert expected in ids(ws)
+    assert next(w for w in ws if w.rule_id == expected).approximate is True
+
+
+def test_an_exact_match_is_never_marked_approximate():
+    assert match_risks([], "성분: 이부프로펜 200mg", RULES)[0].approximate is False
+
+
+def test_an_exact_hit_wins_over_an_approximate_one_for_the_same_rule():
+    ws = match_risks([], "이부프로팬 그리고 아스피린 100mg", RULES)
+    assert next(w for w in ws if w.rule_id == "nsaid").approximate is False
+
+
+def test_short_names_are_exact_only_so_the_tool_does_not_cry_wolf():
+    """One changed character in a three-syllable name is too weak a signal to
+    act on. Longer spellings of the same drug still carry it."""
+    assert match_risks([], "성분: 코데임", RULES) == []
+    assert "opioid_antitussive" in ids(match_risks([], "성분: 인산코데임", RULES))
+
+
+def test_fuzzy_matching_does_not_drag_in_a_safe_box():
+    assert match_risks(["아세트아미노펜 500mg"], "타이레놀 아세트아미노펜 500mg", RULES) == []
+
+
+def test_fuzzy_matching_does_not_drag_in_vitamins():
+    assert match_risks(["비타민C"], "비타민C 1000mg 아스코르브산", RULES) == []

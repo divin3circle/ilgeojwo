@@ -96,7 +96,8 @@ def _to_label_card(data: dict, ocr_text: str, rules: tuple[Rule, ...]) -> LabelC
         dosage=(data.get("dosage") or "").strip() or LABEL_ABSENT["dosage"],
         warnings=[{"rule_id": w.rule_id, "severity": w.severity,
                    "message": w.message, "matched": list(w.matched),
-                   "found_in": list(w.found_in)} for w in warnings],
+                   "found_in": list(w.found_in),
+                   "approximate": w.approximate} for w in warnings],
         ingredients_found=bool(ingredients),
     )
 
