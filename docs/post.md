@@ -266,6 +266,44 @@ That is the pattern this whole project converged on, three times, from three
 different directions: **let the model read, and never let it be the thing you
 trust.**
 
+### A third reader found that I had fixed the instance and not the class
+
+I sent the finished branch to a fresh reviewer. It opened with the dosage fix I was
+proudest of, and then pointed one row up the same card.
+
+```
+Ingredients:  ibuprofen, cetirizine hydrochloride, ketofenilamine maleate
+Dosage, as printed:  1일 3회 1정 식후 복용      ← verbatim, hedged, trustworthy
+Dosage, translated:  Take 1 tablet once daily  ← marked as possibly wrong
+```
+
+The dosage row had a Korean companion and a warning that the translation can be
+wrong. The ingredient row — holding a drug that does not exist and another that is
+the wrong class — had neither. I had fixed the *instance* of "model output
+presented as fact" and walked straight past the *class*.
+
+Worse, `ingredients_found` was `bool(ingredients)` — the truthiness of model
+output. So a model that invents three plausible excipients from an unreadable photo
+produced a clean card, and the "could not identify the ingredients" safety notice I
+had written specifically for that case never fired. The notice was unreachable by
+the exact failure it existed for.
+
+Both are now grounded: the model is asked for the ingredient names verbatim in
+Korean, only names actually present in the scanned text are shown to her, and
+`ingredients_found` comes from that evidence rather than from the model having said
+something. Everything the model claimed is still screened for risk — **screen
+generously, display conservatively.**
+
+The same reviewer found that `make run` served `/scans` — the full OCR text of
+every document she has ever photographed — to any unauthenticated request on the
+network. The server *has* to listen on `0.0.0.0` for her phone to reach it, and
+Korean share-houses routinely put every unit on one subnet. A project whose central
+claim is "her passport number never leaves her laptop" was handing it to the
+building. There is now a one-time key in the QR link, and the page says so.
+
+Three reviews, three different classes of mistake, and not one of them was
+something I could have reasoned my way to from the chair.
+
 
 ## Why Open Innovation Matters
 
@@ -332,8 +370,13 @@ that can deprecate the thing she depends on to read her visa letters.
 ## What does not work
 
 - **The model mistranslates drug names.** Measured, not theoretical: pseudoephedrine
-  became "cetirizine." The English ingredient list on the card is a convenience; the
-  warnings and the Korean text are the parts to trust.
+  became "cetirizine." The card now only shows ingredient names it can find in the
+  scanned text, but the English translations beside them remain a convenience, not
+  evidence.
+- **PDFs are refused, not read.** University and bank mail arrives as PDF; the tool
+  tells you to photograph or screenshot the page instead. A real gap, honestly named.
+- **Anyone on your WiFi with the QR link can read every scan.** Mitigated with a
+  one-time key, not solved. Treat the link as a password.
 - **Fuzzy matching stops at one character.** Two substitutions in the same name,
   or a misread three-syllable name, still slip through. A clean result means
   "nothing on my list was found," never "this is safe" — and the card says that
