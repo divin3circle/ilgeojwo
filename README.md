@@ -56,10 +56,13 @@ false negative.
 names that are in the rule file, however badly the OCR mangles them — line
 breaks, hyphenation, soft hyphens, zero-width characters, full-width Latin,
 decomposed Hangul — and for **one** substituted character in a name of at least
-four, because the OCR measurably does that (see
-[`docs/spike-findings.md`](docs/spike-findings.md): it returned `연장히가` for
-`연장허가` on a clean render). Those approximate matches are labelled
-`POSSIBLE — the OCR may have misread this`.
+four, because the OCR measurably does that. On a clean render of a cold-medicine
+panel EasyOCR returned `이부프로편` for `이부프로펜` and `킬로르페니라민` for
+`클로르페니라민` — and **two of three warnings, including the NSAID, were found
+only by that tier.** Exact matching alone would have shown a clean card for a box
+containing ibuprofen. The numbers are in
+[`docs/spike-findings.md`](docs/spike-findings.md). Approximate matches are
+labelled `POSSIBLE — the OCR may have misread this`.
 
 It does **not** hold for an ingredient the rule file does not list, for two or
 more substitutions, or for a short name misread. Treat a clean result as

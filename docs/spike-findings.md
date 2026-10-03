@@ -125,3 +125,27 @@ approximate one for the same rule, so a clean match is never downgraded.
 (`2026-10-05`) and amount (`60,000`) — EXAONE recovered `60,000` from EasyOCR's
 `60,00o원`, which is the division of labour working as designed: the OCR reads
 badly, the language model cleans up, and neither is allowed near the safety call.
+
+### The measurement that justifies the fuzzy tier
+
+Running the matcher against EasyOCR's real output for the cold-medicine fixture:
+
+```
+rendered:  이부프로펜 200mg      슈도에페드린염산염 30mg      클로르페니라민말레산염 2mg
+easyocr:   이부프로편 2OOmg      수도에페드린염산염 3Omg      킬로르페니라민말레산염 2mg
+                  ^ 펜 -> 편          ^ 슈 -> 수                  ^ 클 -> 킬
+
+[high  ] nsaid                   APPROXIMATE  matched=('이부프로펜',)
+[medium] decongestant            exact        matched=('에페드린',)
+[low   ] sedating_antihistamine  APPROXIMATE  matched=('클로르페니라민',)
+```
+
+**Two of the three warnings, including the high-severity NSAID, were found only by
+the single-substitution tier.** Exact matching returned nothing for 이부프로편 or
+킬로르페니라민. Before the tier existed, this fixture failed its golden test; the
+tool would have shown a clean card for a box containing ibuprofen.
+
+One incidental design lesson: `decongestant` matched *exactly* because the rule
+list carries the short form `에페드린` as well as `슈도에페드린`, and the short
+form survived inside the misread `수도에페드린염산염`. Listing both the bare drug
+and its salt forms gives redundancy that costs nothing.
