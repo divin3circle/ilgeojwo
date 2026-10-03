@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 @dataclass(frozen=True)
 class Config:
     ocr_engine: str
+    ocr_gpu: str
     ocr_model: str
     llm_model: str
     ollama_url: str
@@ -25,6 +26,7 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
     e = os.environ if env is None else env
     return Config(
         ocr_engine=e.get("ILGEOJWO_OCR_ENGINE", "easyocr"),
+        ocr_gpu=e.get("ILGEOJWO_OCR_GPU", "auto"),
         ocr_model=e.get("ILGEOJWO_OCR_MODEL", "PaddlePaddle/PaddleOCR-VL-1.6"),
         llm_model=e.get("ILGEOJWO_LLM_MODEL", "exaone3.5:2.4b"),
         ollama_url=e.get("ILGEOJWO_OLLAMA_URL", "http://localhost:11434"),

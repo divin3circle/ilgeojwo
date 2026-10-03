@@ -11,11 +11,17 @@ import os
 import secrets
 import sys
 
+from .env import FILENAME, load_env_file
 from .lan import pairing_url, print_qr
 
 
 def main() -> int:
+    import pathlib
+
     import uvicorn
+
+    # Whatever ./setup.sh or setup.ps1 chose for this machine.
+    load_env_file(pathlib.Path(FILENAME), os.environ)
 
     port = int(os.environ.get("ILGEOJWO_PORT", "8000"))
     token = os.environ.get("ILGEOJWO_TOKEN") or secrets.token_urlsafe(9)

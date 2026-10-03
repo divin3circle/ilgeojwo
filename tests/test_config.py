@@ -44,3 +44,14 @@ def test_the_ocr_engine_can_be_switched_by_environment():
     c = load_config(env={"ILGEOJWO_OCR_ENGINE": "paddleocr-vl"})
     assert c.ocr_engine == "paddleocr-vl"
     assert c.llm_model == "exaone3.5:2.4b"  # unchanged
+
+
+def test_gpu_use_is_a_config_value_defaulting_to_auto():
+    """Her laptop is Windows with 16 GB and a graphics card; mine is an 8 GB M2
+    with neither. The same code has to suit both without an edit."""
+    assert load_config(env={}).ocr_gpu == "auto"
+
+
+def test_gpu_use_can_be_forced_either_way():
+    assert load_config(env={"ILGEOJWO_OCR_GPU": "1"}).ocr_gpu == "1"
+    assert load_config(env={"ILGEOJWO_OCR_GPU": "0"}).ocr_gpu == "0"

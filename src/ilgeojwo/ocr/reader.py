@@ -32,6 +32,31 @@ ENGINES = ("easyocr", "paddleocr-vl")
 MIN_BOX_CONFIDENCE = 0.05
 
 
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _cuda_available() -> bool:
+    """Separate so tests can replace it without a GPU present."""
+    try:
+        import torch
+
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False
+
+
+def resolve_gpu(setting: str) -> bool:
+    """"auto" asks the hardware; anything else is taken at its word.
+
+    Her laptop is Windows with a graphics card, mine is an 8 GB M2 without one.
+    The same configuration has to suit both.
+    """
+    value = (setting or "").strip().lower()
+    if value == "auto":
+        return _cuda_available()
+    return value in _TRUTHY
+
+
 def _is_noise(text: str) -> bool:
     """A lone bracket or dot is a detection artefact, not content."""
     stripped = text.strip()
@@ -75,9 +100,11 @@ class EasyOcrEngine:
     """Default engine. CPU-only, Korean + English, no transformers dependency."""
 
     def __init__(self, languages: list[str] | None = None,
-                 min_confidence: float = MIN_BOX_CONFIDENCE) -> None:
+                 min_confidence: float = MIN_BOX_CONFIDENCE,
+                 gpu: str | bool = False) -> None:
         self._languages = list(languages or ["ko", "en"])
         self._min_confidence = min_confidence
+        self.gpu = gpu if isinstance(gpu, bool) else resolve_gpu(gpu)
         self._reader = None
         self._lock = threading.Lock()
 
@@ -88,7 +115,7 @@ class EasyOcrEngine:
     def _build(self):
         import easyocr
 
-        return easyocr.Reader(self._languages, gpu=False, verbose=False)
+        return easyocr.Reader(self._languages, gpu=self.gpu, verbose=False)
 
     def _ensure_reader(self) -> None:
         # The handler runs in a threadpool, so two concurrent first requests
@@ -144,7 +171,7 @@ class PaddleOcrVlEngine:
 def build_ocr_engine(config: Config) -> OcrEngine:
     """Constructs the engine without loading any weights."""
     if config.ocr_engine == "easyocr":
-        return EasyOcrEngine()
+        return EasyOcrEngine(gpu=config.ocr_gpu)
     if config.ocr_engine == "paddleocr-vl":
         return PaddleOcrVlEngine(config.ocr_model)
     raise ValueError(
