@@ -24,6 +24,12 @@ _HANGUL_SYLLABLE = re.compile(r"[가-힣]")
 
 ENGINES = ("easyocr", "paddleocr-vl")
 
+# University, bank and airline correspondence arrives as PDF. Each page is
+# rendered and read in turn; the cap keeps one scan from taking an hour, since
+# OCR costs seconds per page and the e-ticket that prompted this was 8 pages.
+MAX_PDF_PAGES = 6
+_PDF_RENDER_SCALE = 2.4  # roughly 170 dpi, enough for 9pt Korean
+
 # Deliberately very low. Confidence looked like the discriminator between real
 # Korean and OCR garbage, and measurement refuted that: on the cold-medicine
 # fixture the correct line 킬로르페니라민말레산염 2mg scored 0.37 while the garbage
@@ -91,8 +97,42 @@ class OcrEngine(Protocol):
     def read(self, path: Path) -> str: ...
 
 
-def read_korean(path: Path, engine: OcrEngine, min_hangul: int) -> OcrResult:
-    text = engine.read(path)
+def _render_pdf_pages(path: Path, into: Path, max_pages: int) -> list[Path]:
+    """Renders up to max_pages to PNGs. Returns [] if it is not a readable PDF."""
+    try:
+        import pypdfium2
+    except ImportError:
+        return []
+    try:
+        document = pypdfium2.PdfDocument(path)
+    except Exception:
+        return []
+    rendered: list[Path] = []
+    try:
+        for index in range(min(len(document), max_pages)):
+            page = document[index]
+            image = page.render(scale=_PDF_RENDER_SCALE).to_pil()
+            out = into / f"page-{index + 1:02d}.png"
+            image.save(out)
+            rendered.append(out)
+    except Exception:
+        return rendered
+    finally:
+        document.close()
+    return rendered
+
+
+def read_korean(path: Path, engine: OcrEngine, min_hangul: int,
+                max_pdf_pages: int = MAX_PDF_PAGES) -> OcrResult:
+    path = Path(path)
+    if path.suffix.lower() == ".pdf":
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as workdir:
+            pages = _render_pdf_pages(path, Path(workdir), max_pdf_pages)
+            text = "\n".join(engine.read(page) for page in pages)
+    else:
+        text = engine.read(path)
     return OcrResult(text=text, readable=len(_HANGUL_SYLLABLE.findall(text)) >= min_hangul)
 
 

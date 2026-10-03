@@ -29,7 +29,8 @@ PARTIAL_LABEL = (
 )
 LENSES = {"document", "label"}
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp",
-               "image/heic", "image/heif", "image/tiff", "image/bmp"}
+               "image/heic", "image/heif", "image/tiff", "image/bmp",
+               "application/pdf"}
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
@@ -76,11 +77,9 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
 
         content_type = (image.content_type or "").lower()
         if content_type not in IMAGE_TYPES:
-            extra = (" PDFs are not supported yet — open the PDF and photograph "
-                     "the page, or screenshot it." if "pdf" in content_type else "")
             raise HTTPException(
-                415, f"That is a {content_type or 'file of unknown type'}, not a "
-                     f"photo.{extra}")
+                415, f"That is a {content_type or 'file of unknown type'}. "
+                     f"Send a photo or a PDF.")
 
         uploads.mkdir(parents=True, exist_ok=True)
         saved = uploads / f"{uuid.uuid4().hex}{Path(image.filename or '').suffix}"

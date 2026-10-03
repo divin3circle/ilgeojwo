@@ -14,6 +14,15 @@ from .prompts import DOCUMENT, DOCUMENT_RETRY, LABEL, LABEL_RETRY
 from .schema import ABSENT, LABEL_ABSENT, DocumentCard, LabelCard
 
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
+_HANGUL = re.compile(r"[\uac00-\ud7a3]")
+
+# Fields the reader must be able to read. deadline_text and issued_text are
+# deliberately verbatim Korean and are excluded.
+_MUST_BE_ENGLISH = ("doc_type", "sender", "action")
+
+
+def _still_korean(data: dict) -> bool:
+    return any(_HANGUL.search(str(data.get(field) or "")) for field in _MUST_BE_ENGLISH)
 
 
 class LlmClient(Protocol):
@@ -60,9 +69,19 @@ def _to_card(data: dict, ocr_text: str = "") -> DocumentCard:
 
 
 def extract_document(ocr_text: str, llm: LlmClient) -> tuple[DocumentCard, str]:
+    last: dict | None = None
     for prompt in (DOCUMENT, DOCUMENT_RETRY):
-        if (data := _parse_json(llm.complete(prompt.format(text=ocr_text)))) is not None:
+        data = _parse_json(llm.complete(prompt.format(text=ocr_text)))
+        if data is None:
+            continue
+        last = data
+        if not _still_korean(data):
             return _to_card(data, ocr_text), "ok"
+        # Korean in an English field is a failed read, not a result: retry once
+        # with a prompt that says so.
+    if last is not None:
+        card = _to_card(last, ocr_text)
+        return card.model_copy(update={"untranslated": True}), "ok"
     return DocumentCard(), "partial"
 
 

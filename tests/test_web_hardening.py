@@ -58,12 +58,22 @@ def test_a_failed_scan_leaves_no_orphaned_copy_of_her_document(tmp_path):
     assert not uploads.exists() or list(uploads.iterdir()) == []
 
 
-def test_a_pdf_is_refused_with_a_message_that_says_so(tmp_path):
+def test_a_pdf_is_accepted_because_that_is_how_official_mail_arrives(tmp_path):
+    """An 8-page e-ticket should not have to be screenshotted a page at a time."""
     c = _client(tmp_path)
     r = c.post("/scan", data={"lens": "document"},
                files={"image": ("a.pdf", io.BytesIO(b"%PDF-1.4 x"), "application/pdf")})
+    assert r.status_code != 415
+
+
+def test_a_file_that_is_neither_a_photo_nor_a_pdf_is_refused_clearly(tmp_path):
+    c = _client(tmp_path)
+    r = c.post("/scan", data={"lens": "document"},
+               files={"image": ("notes.docx", io.BytesIO(b"PK\x03\x04"),
+                                "application/vnd.openxmlformats-officedocument"
+                                ".wordprocessingml.document")})
     assert r.status_code == 415
-    assert "PDF" in r.json()["detail"]
+    assert "photo or a PDF" in r.json()["detail"]
 
 
 def test_an_oversized_upload_is_refused_before_it_is_processed(tmp_path):

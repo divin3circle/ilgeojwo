@@ -123,3 +123,51 @@ def test_a_deadline_the_scan_does_not_contain_is_not_treated_as_printed():
     reply = json.dumps({"doc_type": "Notice", "deadline_text": "2026년 10월 5일"})
     card, _ = extract_document("납부기한 10월 5일까지", FakeLlm(reply))
     assert card.deadline is None
+
+
+KOREAN_REPLY = json.dumps({
+    "doc_type": "항공권 발행 확인서",
+    "sender": "(주)클럽가이아",
+    "action": "본 전자항공권 발행확인서를 통해 탑승수속, 입출국, 세관 통과 시 요구되므로 전 여행기간 동안 소지하시기 바랍니다.",
+    "amount": "KRW 212,400",
+})
+ENGLISH_REPLY = json.dumps({
+    "doc_type": "E-ticket confirmation",
+    "sender": "Club Gaia Co., Ltd.",
+    "action": "Carry this document for the whole trip — it is required at check-in, immigration and customs.",
+    "amount": "KRW 212,400",
+})
+
+
+def test_korean_left_in_an_english_field_is_retried_as_a_translation():
+    """A real e-ticket came back with doc_type '항공권 발행 확인서' and an entirely
+    Korean action paragraph. She cannot read Korean — that is the whole point —
+    so an untranslated field is a failed extraction, not a result."""
+    llm = FakeLlm(KOREAN_REPLY, ENGLISH_REPLY)
+    card, status = extract_document("항공권 발행 확인서 ...", llm)
+    assert card.doc_type == "E-ticket confirmation"
+    assert card.sender == "Club Gaia Co., Ltd."
+    assert status == "ok"
+    assert len(llm.prompts) == 2
+    assert "English" in llm.prompts[1]
+
+
+def test_a_model_that_will_not_translate_says_so_rather_than_pretending():
+    card, status = extract_document("...", FakeLlm(KOREAN_REPLY, KOREAN_REPLY))
+    assert card.untranslated is True
+    assert card.doc_type == "항공권 발행 확인서"
+
+
+def test_a_translated_card_is_not_marked_untranslated():
+    card, _ = extract_document("...", FakeLlm(ENGLISH_REPLY))
+    assert card.untranslated is False
+
+
+def test_the_korean_deadline_text_is_not_mistaken_for_a_failed_translation():
+    """deadline_text is deliberately verbatim Korean and must not trigger a retry."""
+    reply = json.dumps({"doc_type": "Utility bill", "sender": "KEPCO",
+                        "action": "Pay the balance.", "deadline_text": "2026년 10월 5일"})
+    llm = FakeLlm(reply)
+    card, _ = extract_document("납부기한 2026년 10월 5일", llm)
+    assert card.untranslated is False
+    assert len(llm.prompts) == 1

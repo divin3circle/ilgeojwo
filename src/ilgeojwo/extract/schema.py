@@ -23,6 +23,9 @@ class DocumentCard(BaseModel):
     deadline_text: str = ""
     amount: str = ABSENT["amount"]
     location: str = ""
+    # True when the model would not translate the English-facing fields. She
+    # cannot read Korean, so leaving Korean there silently is a failed read.
+    untranslated: bool = False
 
 
 LABEL_ABSENT = {

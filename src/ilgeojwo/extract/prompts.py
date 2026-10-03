@@ -3,6 +3,9 @@
 DOCUMENT = """You are reading text that was scanned from a Korean document.
 Extract only what is literally present. Do not add, infer, or assume anything.
 
+The reader does not read Korean. Every value below marked "in English" MUST be
+written in English. Never copy Korean into those fields.
+
 Return a single JSON object with exactly these keys:
   doc_type      - what kind of document this is, in English
   sender        - the issuing office or company, in English
@@ -17,10 +20,17 @@ If a field is not present in the text, use "". Never guess.
 Korean text:
 {text}"""
 
-DOCUMENT_RETRY = """Your previous reply was not valid JSON.
+DOCUMENT_RETRY = """Your previous reply was not usable: it was either not valid
+JSON, or it left Korean in fields that must be English.
 
 Reply with ONE valid JSON object and nothing else. No prose, no markdown fence.
 Keys: doc_type, sender, action, deadline_text, issued_text, amount, location.
+
+doc_type, sender and action MUST be written in English. Translate them. The
+person reading this cannot read Korean at all, so Korean in those fields is
+useless to them. Only deadline_text and issued_text stay in Korean, copied
+exactly as printed.
+
 Use "" for anything not present in the text.
 
 Korean text:
