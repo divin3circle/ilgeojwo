@@ -1,0 +1,6 @@
+{
+  "lens": "label",
+  "readable": true,
+  "ingredients_found": true,
+  "warning_ids": ["nsaid", "decongestant", "sedating_antihistamine"]
+}

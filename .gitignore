@@ -5,3 +5,11 @@ __pycache__/
 .superpowers/
 data/scans.db
 data/uploads/
+
+# Her real document photos are test fixtures but never leave the machine.
+# They carry her name, address and ARC number even with the passport covered.
+tests/golden/fixtures/*
+!tests/golden/fixtures/.gitkeep
+!tests/golden/fixtures/*.synthetic.png
+# Expectations for her real photos can name her too.
+tests/golden/expected/*.private.json

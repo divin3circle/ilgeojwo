@@ -31,6 +31,8 @@ build-backend = "uv_build"
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = ["slow: needs real models and real images; run with -m slow"]
+addopts = "-m 'not slow'"
 
 [dependency-groups]
 dev = [
