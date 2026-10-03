@@ -1,0 +1,38 @@
+{
+  "profile": "respiratory",
+  "_note": "PROVISIONAL. These four groups are a conservative inference from 'pulmonary condition', not her doctor's instructions. Replace message_en and add groups from her actual medical advice before relying on this (plan Task 12 step 3).",
+  "rules": [
+    {
+      "id": "nsaid",
+      "severity": "high",
+      "match_ko": ["이부프로펜", "아스피린", "아세틸살리실산", "나프록센", "덱시부프로펜", "록소프로펜", "디클로페낙"],
+      "match_en": ["ibuprofen", "aspirin", "acetylsalicylic", "naproxen", "dexibuprofen", "loxoprofen", "diclofenac"],
+      "message_en": "Contains an NSAID. NSAIDs can trigger breathing problems in some people with asthma and related conditions. Show this box to the pharmacist and ask whether acetaminophen (아세트아미노펜) is suitable for you.",
+      "source": "GINA 2025 report, NSAID-exacerbated respiratory disease"
+    },
+    {
+      "id": "decongestant",
+      "severity": "medium",
+      "match_ko": ["슈도에페드린", "페닐에프린", "메틸에페드린", "에페드린"],
+      "match_en": ["pseudoephedrine", "phenylephrine", "methylephedrine", "ephedrine"],
+      "message_en": "Contains a decongestant, which can raise heart rate and blood pressure. Tell the pharmacist about your lung condition and any other medicines you take before using this.",
+      "source": "Korean product inserts for OTC cold remedies; standard decongestant cautions"
+    },
+    {
+      "id": "beta_blocker",
+      "severity": "high",
+      "match_ko": ["프로프라놀롤", "티몰롤", "카르베딜롤", "나돌롤"],
+      "match_en": ["propranolol", "timolol", "carvedilol", "nadolol"],
+      "message_en": "Contains a non-selective beta-blocker. These can narrow the airways, including in eye drops. Do not start this without asking your doctor or pharmacist about your lung condition.",
+      "source": "Standard contraindication guidance for non-selective beta-blockers in obstructive airway disease"
+    },
+    {
+      "id": "sedating_antihistamine",
+      "severity": "low",
+      "match_ko": ["클로르페니라민", "디펜히드라민", "독실아민"],
+      "match_en": ["chlorpheniramine", "diphenhydramine", "doxylamine"],
+      "message_en": "Contains a sedating antihistamine, which causes drowsiness and can thicken airway secretions. Ask the pharmacist whether a non-drowsy alternative would suit you better.",
+      "source": "Korean OTC antihistamine product inserts; standard first-generation antihistamine cautions"
+    }
+  ]
+}
