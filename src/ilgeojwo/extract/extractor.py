@@ -69,7 +69,11 @@ DOCUMENT_SCHEMA = {
             },
         },
     },
-    "required": ["doc_type", "sender", "action", "deadline_text", "amount"],
+    # Everything is required: an optional field is one the model quietly skips,
+    # and an empty field it was never asked for looks identical to one that was
+    # genuinely not on the page.
+    "required": ["doc_type", "sender", "action", "deadline_text", "issued_text",
+                 "amount", "location", "details"],
 }
 
 LABEL_SCHEMA = {
@@ -80,7 +84,8 @@ LABEL_SCHEMA = {
         "ingredients": {"type": "array", "items": _STR},
         "dosage": _STR, "dosage_ko": _STR,
     },
-    "required": ["product_name", "ingredients_ko", "ingredients"],
+    "required": ["product_name", "kind", "ingredients_ko", "ingredients",
+                 "dosage", "dosage_ko"],
 }
 
 

@@ -310,3 +310,17 @@ def test_an_ingredient_on_a_later_page_is_still_screened():
     text = f"콜드에스 정{PAGE_BREAK}사용상의 주의사항{PAGE_BREAK}성분: 이부프로펜 200mg"
     card, _ = extract_label(text, FakeLlm("{}"), RULES)
     assert [w["rule_id"] for w in card.warnings] == ["nsaid"]
+
+
+def test_the_schema_requires_the_fields_she_is_told_to_trust():
+    """Measured: dosage_ko came back empty on a box clearly printing
+    용법용량: 1일 3회 1정 식후 복용. It was optional in the schema, so the model
+    skipped it — and the page tells her to trust that line over the translation."""
+    from ilgeojwo.extract.extractor import LABEL_SCHEMA
+    for field in ("product_name", "ingredients_ko", "ingredients", "dosage", "dosage_ko"):
+        assert field in LABEL_SCHEMA["required"], field
+
+
+def test_the_document_schema_requires_the_key_facts():
+    from ilgeojwo.extract.extractor import DOCUMENT_SCHEMA
+    assert "details" in DOCUMENT_SCHEMA["required"]
