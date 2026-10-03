@@ -333,6 +333,95 @@ the alternative was a fix that cost a high-severity warning to buy a hypothesis.
 
 Four times now: **reasoning proposed, measurement decided.**
 
+### The fifth time, I nearly spent her bandwidth proving myself wrong
+
+My sister sent me a real document to try: an eight-page Korean e-ticket. The card
+came back almost empty, and the sender field read **`Issuer`**.
+
+`Issuer` is not a company. It is the English translation of `발행처`, a *field
+heading* printed on the form. The actual issuer, `(주)클럽가이아`, was sitting on
+line one of page one. The model had read a label and handed it to me as a value.
+
+I fixed that four times. I rewrote the prompt to say a sender is an organisation
+and never the word beside a heading. I gave the model page one alone instead of
+all eight pages concatenated. I added a blocklist of Korean form headings. Each
+time it came back `Issuer`.
+
+So I concluded the 2.4B model was simply too small for a document this dense, and
+started downloading the 7.8B — 4.8 GB on a connection that had already shown me it
+could stall for two hours. It stalled twice, at 92%, at the same byte.
+
+Then, almost as an afterthought, I asked the model one narrow question with its
+output constrained to a two-field JSON schema:
+
+```
+sender: (주)클럽가이아 투어 버스안지점
+```
+
+Club Gaia Tour, Busan branch. Correct, and more complete than anything I had got
+out of it. Same model. Same document. Same machine.
+
+The model was never too small. I was asking for eight fields in a wall of prose
+and hoping for valid JSON back. Ollama has supported schema-constrained generation
+the entire time and I had not used it — I had written a retry loop, a translation
+fallback and three guard functions to clean up after a problem I could have
+prevented at the source.
+
+With the schema in place, every field on that card is right:
+
+```
+doc_type : Air Ticket Confirmation
+sender   : Club Gaia Tour Busan KR
+action   : Review details for passenger itinerary and payment information
+amount   : KRW 212,400
+deadline : None            ← correct; an e-ticket has no deadline
+```
+
+Two of those fixed themselves. The action had been `Issuance` — another translated
+heading — and became a real sentence. The amount had been `212400` and came back as
+printed, `KRW 212,400`. Constraining the shape made the model stop reconstructing
+and start reading.
+
+I had been one download away from blaming the tool for my own instructions.
+
+
+## What it does that a chatbot cannot
+
+Before the open-source argument, the honest competitive one. A frontier model
+would read that e-ticket better than EXAONE 2.4B. "It reads Korean well" is not
+the pitch, and neither is privacy on its own — people say they care and paste the
+document anyway.
+
+Four things a chat window cannot do:
+
+**It knows her.** Her risk list is a file she owns, with a citation on every rule.
+ChatGPT only knows she has a lung condition if she retypes it every single time,
+and the one time she is tired and forgets, it will not warn her.
+
+**It is deterministic.** Same box, same warning, every time. A language model might
+flag the NSAID on Monday and not on Tuesday. For a safety check that is the whole
+game.
+
+**It cannot reassure her.** A chatbot will say "that should be fine." This one is
+architecturally incapable of it: the model never makes the safety call, so the tool
+can only flag and defer.
+
+**It speaks for her.** This is the one I would not have thought of if I had not
+pictured the actual moment. She is at a pharmacy counter holding a box. She cannot
+ask her question in Korean; the pharmacist cannot read her English. The tool already
+knows her condition *and* what the scan just flagged — so it puts the question on
+screen in Korean and she holds up the phone:
+
+> **저는 폐 질환이 있습니다. 호흡에 영향을 주는 약은 피해야 합니다.**
+> **이 약에 소염진통제(NSAID)가 들어 있습니까? 저는 피해야 합니다.**
+
+Each Korean line is paired with its English, because she has to know what she is
+showing a stranger before she shows it. Every phrase lives in the rule file: no
+model, no network, identical wording every time. The rule loader refuses any rule
+that has Korean without an English gloss.
+
+No chatbot can do that, and it has nothing to do with privacy. It is that the tool
+is *hers*.
 
 ## Why Open Innovation Matters
 
