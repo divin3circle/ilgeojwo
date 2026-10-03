@@ -127,3 +127,13 @@ def test_the_page_lists_saved_scans_by_deadline(tmp_path):
     page never fetched."""
     page = _client(tmp_path, "x").get("/").text
     assert "/scans" in page
+
+
+def test_the_page_offers_the_camera_as_its_own_obvious_choice(tmp_path):
+    """On a phone the page said 'Point your camera at it' and then showed a
+    button labelled 'Choose File'. The camera was one tap further in, behind an
+    OS sheet, and nothing on screen said so."""
+    page = _client(tmp_path, "x").get("/").text
+    assert 'capture="environment"' in page
+    assert "Take a photo" in page
+    assert "Choose a file" in page
