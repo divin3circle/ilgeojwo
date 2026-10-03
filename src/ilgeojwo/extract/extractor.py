@@ -112,9 +112,34 @@ def _strings(value: object) -> list[str]:
 
 
 def _is_in(claim: str, haystack: str) -> bool:
-    """Whitespace-insensitive containment, using the matcher's normalisation."""
+    """Whitespace-insensitive containment, using the matcher's normalisation.
+
+    Used for the deadline and the dosage, where strictness is the safe direction:
+    a rejected value shows "not found" rather than a wrong date or frequency.
+    """
     needle = normalize(claim)
     return bool(needle) and needle in haystack
+
+
+# An ingredient name has to survive the OCR substitutions the fuzzy tier exists
+# for — 이부프로펜 arriving as 이부프로편, 200 as 2OO. Requiring exact containment
+# rejected names genuinely on the box, which manufactured the very hallucination
+# the grounding screens for. A hallucination shares almost nothing with the scan;
+# a misread shares most of it.
+_RESEMBLANCE_FLOOR = 0.6
+
+
+def _resembles(claim: str, haystack: str, floor: float = _RESEMBLANCE_FLOOR) -> bool:
+    needle = normalize(claim)
+    if not needle or not haystack:
+        return False
+    if needle in haystack:
+        return True
+    from difflib import SequenceMatcher
+
+    matcher = SequenceMatcher(None, needle, haystack, autojunk=False)
+    matched = sum(block.size for block in matcher.get_matching_blocks())
+    return matched / len(needle) >= floor
 
 
 def _to_label_card(data: dict, ocr_text: str, rules: tuple[Rule, ...]) -> LabelCard:
@@ -125,8 +150,8 @@ def _to_label_card(data: dict, ocr_text: str, rules: tuple[Rule, ...]) -> LabelC
     # Grounding: only Korean the scan actually contains may be shown to her as an
     # ingredient. Everything the model said is still screened for risk, because
     # over-warning is survivable and under-warning is not.
-    grounded = [name for name in claimed_ko if _is_in(name, scanned)]
-    unverified = [name for name in claimed_ko if not _is_in(name, scanned)]
+    grounded = [name for name in claimed_ko if _resembles(name, scanned)]
+    unverified = [name for name in claimed_ko if not _resembles(name, scanned)]
 
     # The raw OCR text is passed in regardless of what the model returned, so a
     # model that missed an ingredient cannot suppress its warning (spec §5.2).

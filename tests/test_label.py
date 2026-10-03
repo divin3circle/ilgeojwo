@@ -250,3 +250,24 @@ def test_an_unreadable_document_is_not_screened_for_medicine_risk(tmp_path):
     c = _client(tmp_path, "이부프로펜")
     r = c.post("/scan", files={"image": _png()}, data={"lens": "document"})
     assert r.json()["warnings"] == []
+
+
+def test_an_ingredient_the_ocr_misread_is_still_counted_as_grounded():
+    """The golden run caught this: the model returned '이부프로펜 200mg' while the
+    OCR had written '이부프로편 2OOmg'. Exact containment rejected a name that is
+    genuinely on the box. Grounding has to tolerate the same misreads the fuzzy
+    tier exists for — otherwise it manufactures the hallucination it screens for."""
+    reply = json.dumps({"ingredients_ko": ["이부프로펜 200mg", "수도에페드린염산염 30mg"],
+                        "ingredients": ["ibuprofen", "pseudoephedrine"]})
+    card, _ = extract_label("성분 및 함량 이부프로편 2OOmg 수도에페드린염산염 3Omg",
+                            FakeLlm(reply), RULES)
+    assert card.ingredients_found is True
+    assert "이부프로펜 200mg" in card.ingredients_ko
+
+
+def test_a_different_drug_is_still_rejected_despite_the_tolerance():
+    """The tolerance must not be wide enough to admit the measured hallucination."""
+    reply = json.dumps({"ingredients_ko": ["세티리진염산염"], "ingredients": ["cetirizine"]})
+    card, _ = extract_label("성분 및 함량 이부프로편 2OOmg", FakeLlm(reply), RULES)
+    assert card.ingredients_ko == []
+    assert card.ingredients_unverified == ["세티리진염산염"]
