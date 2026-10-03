@@ -10,7 +10,7 @@ from ..risk.matcher import match_risks
 from ..risk.normalize import normalize
 from ..risk.rules import Rule
 from .dates import parse_korean_date
-from .prompts import DOCUMENT, DOCUMENT_RETRY, LABEL, LABEL_RETRY
+from .prompts import DOCUMENT, DOCUMENT_RETRY, LABEL, LABEL_RETRY, TRANSLATE
 from .schema import ABSENT, LABEL_ABSENT, DocumentCard, LabelCard
 
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
@@ -92,10 +92,24 @@ def extract_document(ocr_text: str, llm: LlmClient) -> tuple[DocumentCard, str]:
             return _to_card(data, ocr_text), "ok"
         # Korean in an English field is a failed read, not a result: retry once
         # with a prompt that says so.
-    if last is not None:
-        card = _to_card(last, ocr_text)
-        return card.model_copy(update={"untranslated": True}), "ok"
-    return DocumentCard(), "partial"
+    if last is None:
+        return DocumentCard(), "partial"
+
+    # Last resort: stop asking it to extract, and ask it only to translate. A
+    # narrow task succeeds where the full one does not.
+    translated = _parse_json(llm.complete(TRANSLATE.format(
+        doc_type=last.get("doc_type") or "", sender=last.get("sender") or "",
+        action=last.get("action") or "")))
+    if isinstance(translated, dict):
+        merged = dict(last)
+        for field in _MUST_BE_ENGLISH:
+            value = str(translated.get(field) or "").strip()
+            if value and not _HANGUL.search(value):
+                merged[field] = value
+        last = merged
+
+    card = _to_card(last, ocr_text)
+    return card.model_copy(update={"untranslated": _still_korean(last)}), "ok"
 
 
 class ModelUnavailable(RuntimeError):

@@ -62,3 +62,16 @@ Keys: product_name, kind, ingredients_ko, ingredients, dosage, dosage_ko.
 
 Korean text:
 {text}"""
+
+
+TRANSLATE = """Translate these three Korean phrases into plain English.
+
+Reply with ONE JSON object and nothing else, using exactly these keys:
+  doc_type, sender, action
+
+Keep each one short. If a phrase is already English, repeat it unchanged. Do not
+explain, do not add Korean, do not add any other key.
+
+doc_type: {doc_type}
+sender: {sender}
+action: {action}"""

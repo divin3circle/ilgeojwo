@@ -187,3 +187,44 @@ def test_a_short_document_is_passed_whole():
     short = "출입국관리사무소 납부기한 2026년 10월 5일"
     extract_document(short, llm)
     assert short in llm.prompts[0]
+
+
+TRANSLATED = json.dumps({
+    "doc_type": "E-ticket confirmation",
+    "sender": "Club Gaia Co., Ltd.",
+    "action": "Carry this document for the whole trip.",
+})
+
+
+def test_a_card_left_in_korean_gets_a_focused_translation_pass():
+    """Measured: on a real e-ticket the 2.4B model returned Korean twice, even
+    when the retry said why. Re-doing the whole extraction is a hard task for a
+    small model; translating three strings is not."""
+    llm = FakeLlm(KOREAN_REPLY, KOREAN_REPLY, TRANSLATED)
+    card, status = extract_document("항공권 ...", llm)
+    assert card.doc_type == "E-ticket confirmation"
+    assert card.sender == "Club Gaia Co., Ltd."
+    assert card.untranslated is False
+    assert len(llm.prompts) == 3
+    assert "Translate" in llm.prompts[2]
+
+
+def test_the_translation_pass_keeps_the_fields_it_cannot_improve():
+    partial = json.dumps({"doc_type": "E-ticket confirmation"})
+    llm = FakeLlm(KOREAN_REPLY, KOREAN_REPLY, partial)
+    card, _ = extract_document("...", llm)
+    assert card.doc_type == "E-ticket confirmation"
+    assert card.untranslated is True   # sender and action are still Korean
+
+
+def test_when_even_the_translation_pass_fails_the_card_says_so():
+    llm = FakeLlm(KOREAN_REPLY, KOREAN_REPLY, KOREAN_REPLY)
+    card, _ = extract_document("...", llm)
+    assert card.untranslated is True
+    assert len(llm.prompts) == 3
+
+
+def test_the_amount_and_deadline_survive_the_translation_pass():
+    llm = FakeLlm(KOREAN_REPLY, KOREAN_REPLY, TRANSLATED)
+    card, _ = extract_document("총액 KRW 212,400", llm)
+    assert card.amount == "KRW 212,400"
