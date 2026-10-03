@@ -419,6 +419,7 @@ f.addEventListener('submit', async e => {
     <p class="action">${esc(c.action)}</p>
     ${line('Amount', c.amount)}
     ${line('Where', c.location)}
+    ${(c.details||[]).map(d => line(esc(d.label), d.value)).join('')}
     ${d.status === 'partial' ? '<div class="w w-medium">Only partly understood. Read the Korean below.</div>' : ''}
     ${korean}</div>`;
   refreshHistory();

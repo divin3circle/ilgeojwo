@@ -24,6 +24,11 @@ Return a single JSON object with exactly these keys:
   issued_text   - the issue date EXACTLY as written in Korean, or ""
   amount        - any amount payable as written, or ""
   location      - where to go or how to act, or ""
+  details       - up to five other facts that matter on THIS document, as a list
+                  of {{"label": ..., "value": ...}}. Both in English. For a
+                  ticket that might be the passenger, the flights and the times;
+                  for a bill, the account or customer number. Use [] if there is
+                  nothing worth adding. Never put a Korean field label here.
 
 If a field is not present in the text, use "". Never guess.
 
@@ -34,7 +39,8 @@ DOCUMENT_RETRY = """Your previous reply was not usable: it was either not valid
 JSON, or it left Korean in fields that must be English.
 
 Reply with ONE valid JSON object and nothing else. No prose, no markdown fence.
-Keys: doc_type, sender, action, deadline_text, issued_text, amount, location.
+Keys: doc_type, sender, action, deadline_text, issued_text, amount, location,
+details.
 
 doc_type, sender and action MUST be written in English. Translate them. The
 person reading this cannot read Korean at all, so Korean in those fields is

@@ -26,6 +26,10 @@ class DocumentCard(BaseModel):
     # True when the model would not translate the English-facing fields. She
     # cannot read Korean, so leaving Korean there silently is a failed read.
     untranslated: bool = False
+    # Whatever this particular document actually carries. A fixed schema fits a
+    # bill; an e-ticket has no deadline and nothing to do, and left four fields
+    # reading "none" for a page full of flights, dates and a passenger name.
+    details: list[dict] = []
 
 
 LABEL_ABSENT = {

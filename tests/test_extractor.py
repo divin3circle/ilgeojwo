@@ -1,6 +1,8 @@
 import json
 from datetime import date
 
+import pytest
+
 from ilgeojwo.extract.extractor import extract_document
 from ilgeojwo.extract.schema import ABSENT, DocumentCard
 
@@ -301,3 +303,61 @@ def test_a_single_page_document_is_unaffected():
     llm = FakeLlm(ENGLISH_REPLY)
     extract_document("출입국관리사무소 납부기한 2026년 10월 5일", llm)
     assert "납부기한" in llm.prompts[0]
+
+
+@pytest.mark.parametrize("label", ["Issuer", "Sender", "Issue", "Recipient",
+                                   "Applicant", "Document", "Issuance", "발행처"])
+def test_a_field_label_is_not_a_sender(label):
+    """Measured twice: the document prints '발행일/발행처 (Issue Date/Place)' and the
+    model returned 'Issuer' as the sender while (주)클럽가이아 sat on line one. Same
+    failure as 'Issuance' in the action field, different field."""
+    reply = json.dumps({"doc_type": "Airfare Confirmation", "sender": label,
+                        "action": "No action needed"})
+    card, _ = extract_document("(주)클럽가이아 발행처", FakeLlm(reply))
+    assert card.sender == ABSENT["sender"]
+
+
+def test_a_real_organisation_name_survives():
+    reply = json.dumps({"doc_type": "Airfare Confirmation", "sender": "CLUB GAIA",
+                        "action": "No action needed"})
+    card, _ = extract_document("(주)클럽가이아", FakeLlm(reply))
+    assert card.sender == "CLUB GAIA"
+
+
+def test_key_facts_are_carried_so_a_rich_document_is_not_an_empty_card():
+    """An e-ticket has no deadline and nothing to do, so the fixed schema left
+    four fields reading 'none' for a document full of useful information."""
+    reply = json.dumps({
+        "doc_type": "Airfare Confirmation", "sender": "CLUB GAIA",
+        "action": "No action needed",
+        "details": [{"label": "Passenger", "value": "KIM/HAKCHAN"},
+                    {"label": "Outbound", "value": "Busan to Fukuoka, 2 Dec 14:00"},
+                    {"label": "Return", "value": "Fukuoka to Busan, 5 Dec 16:00"}],
+    })
+    card, _ = extract_document("항공권", FakeLlm(reply))
+    assert len(card.details) == 3
+    assert card.details[0] == {"label": "Passenger", "value": "KIM/HAKCHAN"}
+
+
+def test_key_facts_still_in_korean_are_dropped_rather_than_shown():
+    reply = json.dumps({"doc_type": "Notice", "sender": "KEPCO",
+                        "action": "Pay the balance at the bank.",
+                        "details": [{"label": "Passenger", "value": "KIM/HAKCHAN"},
+                                    {"label": "승객", "value": "김학찬"}]})
+    card, _ = extract_document("...", FakeLlm(reply))
+    assert [d["label"] for d in card.details] == ["Passenger"]
+
+
+def test_malformed_key_facts_do_not_break_the_card():
+    reply = json.dumps({"doc_type": "Notice", "sender": "KEPCO",
+                        "action": "Pay the balance at the bank.",
+                        "details": ["not a pair", {"label": "OK", "value": "yes"},
+                                    {"label": "", "value": "x"}, {"value": "no label"}]})
+    card, _ = extract_document("...", FakeLlm(reply))
+    assert card.details == [{"label": "OK", "value": "yes"}]
+
+
+def test_the_prompt_asks_for_key_facts():
+    llm = FakeLlm(ENGLISH_REPLY)
+    extract_document("...", llm)
+    assert "details" in llm.prompts[0]

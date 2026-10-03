@@ -67,6 +67,40 @@ def _parse_json(reply: str) -> dict | None:
 # of the Korean label 발행 — which tells her nothing she can act on.
 _REAL_ANSWERS = {"no action needed"}
 
+# Words that are field headings on Korean forms, not values. The model printed
+# "Issuance" as the action and "Issuer" as the sender, both translations of
+# labels (발행, 발행처) while the real answers sat elsewhere on the page.
+_LABELS_NOT_VALUES = {
+    "issuer", "sender", "issue", "issuance", "issued", "recipient", "applicant",
+    "name", "document", "date", "amount", "total", "place", "from", "to",
+    "발행", "발행처", "발행일", "담당자", "수신", "발신",
+}
+
+
+def _is_a_value(text: str) -> bool:
+    cleaned = text.strip().strip(":：").strip()
+    if not cleaned or len(cleaned) < 3:
+        return False
+    return cleaned.lower() not in _LABELS_NOT_VALUES
+
+
+def _details_from(value: object) -> list[dict]:
+    """Keeps only well-formed, English label/value pairs. Never raises."""
+    if not isinstance(value, list):
+        return []
+    kept = []
+    for item in value[:5]:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label") or "").strip()
+        text = str(item.get("value") or "").strip()
+        if not label or not text:
+            continue
+        if _HANGUL.search(label) or _HANGUL.search(text):
+            continue
+        kept.append({"label": label, "value": text})
+    return kept
+
 
 def _is_an_instruction(action: str) -> bool:
     cleaned = action.strip().rstrip(".")
@@ -92,13 +126,15 @@ def _to_card(data: dict, ocr_text: str = "") -> DocumentCard:
 
     return DocumentCard(
         doc_type=(data.get("doc_type") or "").strip() or ABSENT["doc_type"],
-        sender=(data.get("sender") or "").strip() or ABSENT["sender"],
+        sender=(sender if _is_a_value(sender := (data.get("sender") or "").strip())
+                else ABSENT["sender"]),
         action=(action if _is_an_instruction(action := (data.get("action") or "").strip())
                 else ABSENT["action"]),
         deadline=deadline,
         deadline_text=deadline_text,
         amount=(data.get("amount") or "").strip() or ABSENT["amount"],
         location=(data.get("location") or "").strip(),
+        details=_details_from(data.get("details")),
     )
 
 
