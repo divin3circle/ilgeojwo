@@ -1,37 +1,61 @@
 {
   "profile": "respiratory",
-  "_note": "PROVISIONAL. These four groups are a conservative inference from 'pulmonary condition', not her doctor's instructions. Replace message_en and add groups from her actual medical advice before relying on this (plan Task 12 step 3).",
+  "_note": "PROVISIONAL. These groups are a conservative inference from 'pulmonary condition', NOT her doctor's instructions. Replace message_en and add groups from her actual medical advice before relying on this (plan Task 12 step 3). Wording is deliberately 'is named on this packaging' and never 'contains' — a Korean box names other drugs in its contraindication paragraph, so a match does not prove containment.",
   "rules": [
     {
       "id": "nsaid",
       "severity": "high",
-      "match_ko": ["이부프로펜", "아스피린", "아세틸살리실산", "나프록센", "덱시부프로펜", "록소프로펜", "디클로페낙"],
-      "match_en": ["ibuprofen", "aspirin", "acetylsalicylic", "naproxen", "dexibuprofen", "loxoprofen", "diclofenac"],
-      "message_en": "Contains an NSAID. NSAIDs can trigger breathing problems in some people with asthma and related conditions. Show this box to the pharmacist and ask whether acetaminophen (아세트아미노펜) is suitable for you.",
-      "source": "GINA 2025 report, NSAID-exacerbated respiratory disease"
+      "match_ko": ["이부프로펜", "아스피린", "아세틸살리실산", "나프록센", "덱시부프로펜", "록소프로펜", "디클로페낙", "아세클로페낙", "펠루비프로펜", "케토프로펜", "피록시캄", "플루르비프로펜", "메페남산", "멜록시캄", "세레콕시브", "잘토프로펜", "살리실산메틸", "부루펜"],
+      "match_en": ["ibuprofen", "aspirin", "acetylsalicylic", "naproxen", "dexibuprofen", "loxoprofen", "diclofenac", "aceclofenac", "pelubiprofen", "ketoprofen", "piroxicam", "flurbiprofen", "mefenamic", "meloxicam", "celecoxib", "zaltoprofen", "methyl salicylate"],
+      "message_en": "An NSAID — or a product known to include one — is named on this packaging. NSAIDs can trigger breathing problems in some people with asthma and related conditions. Show this box to the pharmacist and ask whether acetaminophen (아세트아미노펜) is suitable for you. This includes patches and gels, not only tablets.",
+      "source": "GINA 2025 report, NSAID-exacerbated respiratory disease; Korean OTC analgesic product inserts"
     },
     {
-      "id": "decongestant",
-      "severity": "medium",
-      "match_ko": ["슈도에페드린", "페닐에프린", "메틸에페드린", "에페드린"],
-      "match_en": ["pseudoephedrine", "phenylephrine", "methylephedrine", "ephedrine"],
-      "message_en": "Contains a decongestant, which can raise heart rate and blood pressure. Tell the pharmacist about your lung condition and any other medicines you take before using this.",
-      "source": "Korean product inserts for OTC cold remedies; standard decongestant cautions"
+      "id": "opioid_antitussive",
+      "severity": "high",
+      "match_ko": ["코데인", "인산코데인", "디히드로코데인", "디하이드로코데인", "트라마돌"],
+      "match_en": ["codeine", "dihydrocodeine", "tramadol"],
+      "message_en": "An opioid cough suppressant is named on this packaging. Opioids can slow breathing, which matters more with a lung condition. Do not take this before asking your doctor or pharmacist about your condition.",
+      "source": "Dihydrocodeine appears in widely sold Korean OTC cough and cold products; standard opioid respiratory-depression caution in chronic respiratory disease"
     },
     {
       "id": "beta_blocker",
       "severity": "high",
-      "match_ko": ["프로프라놀롤", "티몰롤", "카르베딜롤", "나돌롤"],
-      "match_en": ["propranolol", "timolol", "carvedilol", "nadolol"],
-      "message_en": "Contains a non-selective beta-blocker. These can narrow the airways, including in eye drops. Do not start this without asking your doctor or pharmacist about your lung condition.",
-      "source": "Standard contraindication guidance for non-selective beta-blockers in obstructive airway disease"
+      "match_ko": ["프로프라놀롤", "티몰롤", "카르베딜롤", "나돌롤", "카르테올롤", "레보부놀롤", "핀돌롤"],
+      "match_en": ["propranolol", "timolol", "carvedilol", "nadolol", "carteolol", "levobunolol", "pindolol"],
+      "message_en": "A non-selective beta-blocker is named on this packaging. These can narrow the airways, and that applies to eye drops as well as tablets. Do not start this without asking your doctor or pharmacist about your lung condition.",
+      "source": "Standard contraindication guidance for non-selective beta-blockers in obstructive airway disease, including ophthalmic timolol, carteolol and levobunolol"
+    },
+    {
+      "id": "pyrazolone",
+      "severity": "high",
+      "match_ko": ["이소프로필안티피린", "아미노피린", "설피린", "게보린", "사리돈"],
+      "match_en": ["isopropylantipyrine", "propyphenazone", "aminopyrine", "sulpyrine"],
+      "message_en": "A pyrazolone painkiller — or a Korean brand known to include one — is named on this packaging. These are associated with analgesic-induced asthma. Ask the pharmacist for an alternative and mention your lung condition.",
+      "source": "Isopropylantipyrine is an ingredient of the Korean OTC analgesics 게보린 and 사리돈; analgesic-induced asthma literature"
+    },
+    {
+      "id": "decongestant",
+      "severity": "medium",
+      "match_ko": ["슈도에페드린", "페닐에프린", "메틸에페드린", "에페드린", "페닐프로판올아민", "자일로메타졸린", "옥시메타졸린", "나파졸린", "트라마졸린", "판콜", "판피린", "타이레놀콜드"],
+      "match_en": ["pseudoephedrine", "phenylephrine", "methylephedrine", "ephedrine", "phenylpropanolamine", "xylometazoline", "oxymetazoline", "naphazoline", "tramazoline"],
+      "message_en": "A decongestant — oral or nasal — is named on this packaging. Decongestants can raise heart rate and blood pressure, and nasal sprays rebound if used for more than a few days. Tell the pharmacist about your lung condition and any other medicines you take before using this.",
+      "source": "Korean product inserts for OTC cold remedies and nasal sprays; standard sympathomimetic decongestant cautions"
+    },
+    {
+      "id": "sulfite",
+      "severity": "medium",
+      "match_ko": ["아황산염", "메타중아황산나트륨", "아황산나트륨", "이산화황"],
+      "match_en": ["sulfite", "sulphite", "metabisulfite", "sulfur dioxide"],
+      "message_en": "A sulfite preservative is named on this packaging. Sulfites are a recognised asthma trigger for some people, and they appear in food and drink as well as medicines. If you have reacted to dried fruit or wine before, ask your doctor whether to avoid this.",
+      "source": "Sulfite-sensitive asthma is well documented; Korean food labelling lists 아황산염 among allergens"
     },
     {
       "id": "sedating_antihistamine",
       "severity": "low",
-      "match_ko": ["클로르페니라민", "디펜히드라민", "독실아민"],
-      "match_en": ["chlorpheniramine", "diphenhydramine", "doxylamine"],
-      "message_en": "Contains a sedating antihistamine, which causes drowsiness and can thicken airway secretions. Ask the pharmacist whether a non-drowsy alternative would suit you better.",
+      "match_ko": ["클로르페니라민", "디펜히드라민", "독실아민", "트리프롤리딘", "프로메타진", "히드록시진", "디멘히드리네이트", "메퀴타진", "카르비녹사민"],
+      "match_en": ["chlorpheniramine", "diphenhydramine", "doxylamine", "triprolidine", "promethazine", "hydroxyzine", "dimenhydrinate", "mequitazine", "carbinoxamine"],
+      "message_en": "A sedating antihistamine is named on this packaging. These cause drowsiness and can thicken airway secretions. Ask the pharmacist whether a non-drowsy alternative would suit you better.",
       "source": "Korean OTC antihistamine product inserts; standard first-generation antihistamine cautions"
     }
   ]

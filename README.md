@@ -49,8 +49,21 @@ a curated rule file in `data/risk_rules.json` where every rule carries a citatio
 
 The matcher runs against the **raw OCR text as well as** the model's extracted
 ingredient list. If the model misses an ingredient entirely, the raw text still
-raises the warning. A model failure can produce a false positive. It cannot
-silently produce a false negative.
+raises the warning. A model failure can produce a false positive, not a silent
+false negative.
+
+**That guarantee is bounded, and the bound matters.** It holds for ingredient
+names that are in the rule file, however badly the OCR mangles them — line
+breaks, hyphenation, soft hyphens, zero-width characters, full-width Latin,
+decomposed Hangul. It does **not** hold for an ingredient the rule file does not
+list, or for OCR that substitutes a similar-looking Hangul syllable
+(`이부프로펜` read as `이부프로팬`). There is no fuzzy matching tier. Treat a
+clean result as "nothing on my list was found", never as "this is safe."
+
+A matched name also does not prove the box *contains* that ingredient — Korean
+packaging names other drugs in its 주의사항 (precautions) paragraph. That is why
+the warnings say a name "is named on this packaging" and show you what matched,
+rather than asserting what the box contains.
 
 ## Footprint
 
