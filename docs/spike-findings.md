@@ -149,3 +149,58 @@ One incidental design lesson: `decongestant` matched *exactly* because the rule
 list carries the short form `에페드린` as well as `슈도에페드린`, and the short
 form survived inside the misread `수도에페드린염산염`. Listing both the bare drug
 and its salt forms gives redundancy that costs nothing.
+
+---
+
+## Live end-to-end through real HTTP, real EasyOCR, real EXAONE
+
+`uvicorn --factory ilgeojwo.web.wire:app`, then `curl -F` with each fixture. Both
+lenses returned `status: ok` and both rows persisted. This is the first exercise of
+`wire.py` and `build_ocr_engine` — every unit test injects fakes.
+
+### Document lens
+
+`deadline: 2026-10-05` (exact), `amount: "60,000원"`, sender *"Seoul Immigration
+Service Foreigner Office"*, and an action sentence that reads correctly — all
+recovered from OCR that had written 연장히가, 신청서클, 남부기한 and `60,00o원`.
+
+### Label lens — the result that justifies the whole architecture
+
+The model was asked only to transcribe. Here is what it produced:
+
+```
+rendered:   이부프로펜          슈도에페드린염산염        클로르페니라민말레산염
+easyocr:    이부프로편          수도에페드린염산염        킬로르페니라민말레산염
+EXAONE:     "ibuprofen"        "cetirizine hydrochloride"  "ketofenilamine maleate"
+            correct            WRONG DRUG                  INVENTED
+```
+
+`슈도에페드린` is pseudoephedrine, a decongestant. EXAONE called it **cetirizine**,
+which is an antihistamine — a different drug in a different class.
+`클로르페니라민` became **"ketofenilamine"**, which is not a drug at all. Two of
+three ingredients wrong, stated confidently.
+
+All three warnings fired anyway:
+
+| rule | found_in | approximate | why it survived |
+|---|---|---|---|
+| `nsaid` | `ingredients` | no | the model corrected the OCR's 이부프로편 |
+| `decongestant` | **`ocr_text`** | no | "cetirizine" matched nothing; raw 에페드린 did |
+| `sedating_antihistamine` | **`ocr_text`** | yes | "ketofenilamine" matched nothing; fuzzy caught 클로르페니라민 |
+
+**Two of the three warnings existed only because the matcher screens the raw OCR
+text as well as the model's output.** The natural design — trust the extracted
+ingredient list — would have dropped the decongestant and the antihistamine, and
+replaced one of them with a wrong drug name on screen. Spec §5.2 was written as a
+precaution. It turns out to be load-bearing.
+
+### A defect this run exposed: the dosage
+
+Source: `1일 3회 1정 식후 복용` — one tablet, **three times** a day, after meals.
+EXAONE returned: *"Take 1 tablet once daily after meals."*
+
+A wrong frequency on medication is not an acceptable translation error, and she has
+no way to check an English sentence against a Korean box. The card now carries
+`dosage_ko` — the dosage line verbatim — shown **above** the translation, with the
+translation explicitly marked as untrustworthy. The Korean is what she shows the
+pharmacist.

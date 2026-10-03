@@ -131,3 +131,32 @@ def test_the_page_never_presents_an_empty_warning_list_as_clearance(tmp_path):
     'nothing matched' is not 'this is safe'."""
     page = _client(tmp_path, "x").get("/").text.lower()
     assert "not the same as safe" in page
+
+
+def test_the_dosage_is_carried_in_korean_too_because_the_model_mistranslated_it():
+    """MEASURED on the real stack: EXAONE rendered '1일 3회 1정 식후 복용'
+    (one tablet, THREE times a day) as 'Take 1 tablet once daily'. A dosage she
+    cannot check against the box is worse than no dosage."""
+    reply = json.dumps({"product_name": "ColdES", "kind": "medicine",
+                        "ingredients": ["이부프로펜"],
+                        "dosage": "Take 1 tablet once daily after meals",
+                        "dosage_ko": "1일 3회 1정 식후 복용"})
+    card, _ = extract_label("1일 3회 1정 식후 복용", FakeLlm(reply), RULES)
+    assert card.dosage_ko == "1일 3회 1정 식후 복용"
+    assert card.dosage == "Take 1 tablet once daily after meals"
+
+
+def test_a_missing_korean_dosage_is_empty_not_invented():
+    card, _ = extract_label("흐릿한 글자", FakeLlm("{}"), RULES)
+    assert card.dosage_ko == ""
+
+
+def test_the_label_prompt_asks_for_the_dosage_verbatim_in_korean():
+    llm = FakeLlm(COLD)
+    extract_label("...", llm, RULES)
+    assert "dosage_ko" in llm.prompts[0]
+
+
+def test_the_page_shows_the_korean_dosage_as_the_checkable_one(tmp_path):
+    page = _client(tmp_path, "x").get("/").text
+    assert "dosage_ko" in page

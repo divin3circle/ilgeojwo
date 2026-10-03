@@ -39,5 +39,8 @@ class LabelCard(BaseModel):
     kind: str = LABEL_ABSENT["kind"]
     ingredients: list[str] = []
     dosage: str = LABEL_ABSENT["dosage"]
+    # Verbatim Korean. The model measurably mistranslated a frequency
+    # ("1일 3회" -> "once daily"), so the printed text is what she can check.
+    dosage_ko: str = ""
     warnings: list[dict] = []
     ingredients_found: bool = False

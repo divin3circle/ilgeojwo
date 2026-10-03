@@ -34,6 +34,8 @@ Return a single JSON object with exactly these keys:
   kind         - "medicine" or "food", or ""
   ingredients  - a list of active ingredient names exactly as printed, or []
   dosage       - the dosage instructions in English, or ""
+  dosage_ko    - the dosage line EXACTLY as written in Korean, copied
+                 character for character, or ""
 
 List every active ingredient you can see, including ones you do not recognise.
 If a field is not present, use "" or []. Never guess.
@@ -44,7 +46,7 @@ Korean text:
 LABEL_RETRY = """Your previous reply was not valid JSON.
 
 Reply with ONE valid JSON object and nothing else. No prose, no markdown fence.
-Keys: product_name, kind, ingredients, dosage.
+Keys: product_name, kind, ingredients, dosage, dosage_ko.
 
 Korean text:
 {text}"""

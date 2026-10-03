@@ -91,7 +91,9 @@ f.addEventListener('submit', async e => {
       ${c.ingredients_found
           ? row('Ingredients', c.ingredients.join(', '))
           : '<div class="warn">Could not identify the ingredients in this photo. Do not rely on this. Show the box to the pharmacist.</div>'}
-      ${row('Dosage', c.dosage)}
+      ${row('Dosage, as printed', c.dosage_ko)}
+      ${row('Dosage, translated', c.dosage)}
+      ${c.dosage_ko ? '<div class="disclaimer">The translated dosage can be wrong \u2014 the model has mistranslated a frequency before. Trust the Korean line, and show it to the pharmacist.</div>' : ''}
       ${c.warnings.map(w => `<div class="warn">${w.approximate ? 'POSSIBLE — the OCR may have misread this. ' : ''}${esc(w.message)}<br><small>matched: ${esc(w.matched.join(', '))}${w.approximate ? ' (approximately)' : ''} · seen in: ${esc(w.found_in.join(' + '))}</small></div>`).join('')}
       ${c.warnings.length === 0 && c.ingredients_found
           ? '<div class="disclaimer">Nothing on your risk list was found. That is <strong>not the same as safe</strong> — the OCR can misread a syllable, and the list only covers what is in it. Still show the box to the pharmacist.</div>'
