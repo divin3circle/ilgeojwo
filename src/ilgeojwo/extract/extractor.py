@@ -55,6 +55,18 @@ def _parse_json(reply: str) -> dict | None:
     return value if isinstance(value, dict) else None
 
 
+# An instruction is a sentence. The model returned "Issuance" — its translation
+# of the Korean label 발행 — which tells her nothing she can act on.
+_REAL_ANSWERS = {"no action needed"}
+
+
+def _is_an_instruction(action: str) -> bool:
+    cleaned = action.strip().rstrip(".")
+    if cleaned.lower() in _REAL_ANSWERS:
+        return True
+    return len(cleaned.split()) >= 3
+
+
 def _to_card(data: dict, ocr_text: str = "") -> DocumentCard:
     deadline_text = (data.get("deadline_text") or "").strip()
     issued_text = (data.get("issued_text") or "").strip()
@@ -73,7 +85,8 @@ def _to_card(data: dict, ocr_text: str = "") -> DocumentCard:
     return DocumentCard(
         doc_type=(data.get("doc_type") or "").strip() or ABSENT["doc_type"],
         sender=(data.get("sender") or "").strip() or ABSENT["sender"],
-        action=(data.get("action") or "").strip() or ABSENT["action"],
+        action=(action if _is_an_instruction(action := (data.get("action") or "").strip())
+                else ABSENT["action"]),
         deadline=deadline,
         deadline_text=deadline_text,
         amount=(data.get("amount") or "").strip() or ABSENT["amount"],

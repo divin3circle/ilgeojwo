@@ -261,3 +261,26 @@ def test_an_informational_document_may_legitimately_have_no_action():
     card, _ = extract_document("항공권", FakeLlm(reply))
     assert card.action == "No action needed"
     assert card.untranslated is False
+
+
+def test_a_single_word_is_not_an_action():
+    """Measured: the model returned 'Issuance' — a translation of the Korean
+    label 발행, not something she must do. An instruction is a sentence."""
+    reply = json.dumps({"doc_type": "Airfare Confirmation", "sender": "CLUB GAIA",
+                        "action": "Issuance", "amount": "KRW 212,400"})
+    card, _ = extract_document("항공권 발행 확인서", FakeLlm(reply))
+    assert card.action == ABSENT["action"]
+
+
+def test_a_real_instruction_survives():
+    reply = json.dumps({"doc_type": "Notice", "sender": "KEPCO",
+                        "action": "Pay the balance at a bank before the due date."})
+    card, _ = extract_document("...", FakeLlm(reply))
+    assert card.action == "Pay the balance at a bank before the due date."
+
+
+def test_no_action_needed_is_kept_because_it_is_a_real_answer():
+    reply = json.dumps({"doc_type": "Receipt", "sender": "Club Gaia",
+                        "action": "No action needed"})
+    card, _ = extract_document("...", FakeLlm(reply))
+    assert card.action == "No action needed"

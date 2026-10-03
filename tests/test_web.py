@@ -177,3 +177,11 @@ def test_the_page_can_offer_a_live_scanner_where_the_browser_allows_it(tmp_path)
     page = _client(tmp_path, "x").get("/").text
     assert "isSecureContext" in page
     assert "getUserMedia" in page
+
+
+def test_an_unconfirmed_date_is_not_printed_under_the_word_due(tmp_path):
+    """The model put the ISSUE date in the deadline field. The guard correctly
+    refused it, and then the page printed it under 'Due' anyway — telling her the
+    opposite of what the system concluded."""
+    page = _client(tmp_path, "x").get("/").text
+    assert "c.deadline && c.deadline_text" in page

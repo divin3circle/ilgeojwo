@@ -414,7 +414,7 @@ f.addEventListener('submit', async e => {
       <span class="lab">Due</span>
       ${c.deadline ? `<span class="val">${esc(c.deadline)}</span>`
                    : '<span class="val none">No date found</span>'}
-      ${c.deadline_text ? `<span class="lab">as printed: ${esc(c.deadline_text)}</span>` : ''}
+      ${c.deadline && c.deadline_text ? `<span class="lab">as printed: ${esc(c.deadline_text)}</span>` : ''}
     </div>
     <p class="action">${esc(c.action)}</p>
     ${line('Amount', c.amount)}
