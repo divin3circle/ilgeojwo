@@ -24,23 +24,31 @@ _HANGUL_SYLLABLE = re.compile(r"[가-힣]")
 
 ENGINES = ("easyocr", "paddleocr-vl")
 
-# Boxes below this confidence are noise. EasyOCR decodes from a charset of
-# precomposed syllables, so a rotated or unreadable photo produces confident-
-# looking 가-힣 rather than isolated jamo — per-box confidence is the only
-# discriminator available, and detail=0 discarded it.
-MIN_BOX_CONFIDENCE = 0.3
+# Deliberately very low. Confidence looked like the discriminator between real
+# Korean and OCR garbage, and measurement refuted that: on the cold-medicine
+# fixture the correct line 킬로르페니라민말레산염 2mg scored 0.37 while the garbage
+# box '[' scored 0.53. Any floor that drops the garbage drops the ingredient, so
+# this only removes degenerate boxes and the shape check below does the real work.
+MIN_BOX_CONFIDENCE = 0.05
+
+
+def _is_noise(text: str) -> bool:
+    """A lone bracket or dot is a detection artefact, not content."""
+    stripped = text.strip()
+    return len(stripped) <= 1 and not stripped.isalnum()
 
 
 def keep_confident(rows: object, floor: float) -> str:
-    """Joins the text of boxes at or above `floor`. Never raises on odd rows."""
+    """Joins box text, dropping degenerate boxes. Never raises on odd rows."""
     kept = []
     for row in rows or ():
         try:
             _, text, confidence = row[0], row[1], row[2]
         except (TypeError, IndexError, KeyError):
             continue
-        if isinstance(text, str) and isinstance(confidence, (int, float)) \
-                and confidence >= floor:
+        if not isinstance(text, str) or _is_noise(text):
+            continue
+        if isinstance(confidence, (int, float)) and confidence >= floor:
             kept.append(text)
     return "\n".join(kept)
 
@@ -93,10 +101,11 @@ class EasyOcrEngine:
 
     def read(self, path: Path) -> str:
         self._ensure_reader()
-        rows = self._reader.readtext(
-            str(path), detail=1, paragraph=False,
-            rotation_info=[90, 180, 270],  # phone photos are routinely rotated
-        )
+        # No rotation_info: it was added for upside-down phone photos and
+        # measurably destroyed an ingredient line on an UPRIGHT image, replacing
+        # 킬로르페니라민말레산염 2mg with '[' at higher confidence. Rotation handling
+        # has to be earned with a rotated fixture, not assumed.
+        rows = self._reader.readtext(str(path), detail=1, paragraph=False)
         return keep_confident(rows, self._min_confidence)
 
 

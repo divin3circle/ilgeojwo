@@ -304,6 +304,35 @@ building. There is now a one-time key in the QR link, and the page says so.
 Three reviews, three different classes of mistake, and not one of them was
 something I could have reasoned my way to from the chair.
 
+### The last one is my favourite, because the fix was wrong
+
+That reviewer also pointed out that I had never actually tested the rotated-photo
+case, and that I was throwing away EasyOCR's per-box confidence scores — the one
+signal that could tell real text from garbage. Both observations were correct.
+
+So I turned on rotation handling and started filtering by confidence. Then I re-ran
+the golden suite, and a warning had disappeared.
+
+| configuration | the chlorpheniramine line | confidence |
+|---|---|---|
+| no rotation | `킬로르페니라민말레산염 2mg` | **0.37** |
+| rotation enabled | `[` | **0.53** |
+
+On an **upright** image, offering the engine rotations made it pick a wrong
+orientation for one box and return a single bracket — at *higher* confidence than
+the correct reading it destroyed. One of the three ingredients on the box stopped
+being screened.
+
+And confidence turned out to be worthless as a filter here: the correct line scored
+0.37, the garbage scored 0.53. Any threshold that drops the garbage drops the drug.
+
+So the rotation handling is gone, the confidence floor is low enough to only remove
+empty boxes, and a shape check throws out single-character boxes — which is what
+`[` actually is. Rotated photos remain untested, and the README says so, because
+the alternative was a fix that cost a high-severity warning to buy a hypothesis.
+
+Four times now: **reasoning proposed, measurement decided.**
+
 
 ## Why Open Innovation Matters
 

@@ -204,3 +204,35 @@ no way to check an English sentence against a Korean box. The card now carries
 `dosage_ko` — the dosage line verbatim — shown **above** the translation, with the
 translation explicitly marked as untrustworthy. The Korean is what she shows the
 pharmacist.
+
+---
+
+## A plausible fix that made things worse
+
+The final review noted, correctly, that Review Focus 2 (rotated photos) was never
+measured, that the rotation test fed isolated jamo to a fake while EasyOCR decodes
+precomposed syllables, and that `detail=0` discarded per-box confidence — the one
+available discriminator between real text and garbage. Both observations were right.
+The remedy I inferred from them was wrong, and the golden suite said so.
+
+Enabling `rotation_info=[90, 180, 270]` and filtering boxes by confidence:
+
+| configuration | the chlorpheniramine line | confidence |
+|---|---|---|
+| `paragraph=False`, no rotation | `킬로르페니라민말레산염 2mg` | **0.37** |
+| `paragraph=False`, `rotation_info` | `[` | **0.53** |
+
+On an **upright** image, offering EasyOCR rotations made it choose a wrong
+orientation for one box and return a single bracket — with *higher* confidence than
+the correct reading it replaced. The `sedating_antihistamine` warning disappeared
+from the cold-medicine fixture, and the golden test caught it.
+
+The second lesson is sharper: **confidence does not separate real Korean from OCR
+garbage here.** The correct ingredient line scored 0.37; the garbage scored 0.53.
+Any floor that drops the garbage also drops the ingredient. So the floor is now
+0.05 — enough to remove degenerate boxes only — and a shape check discards
+single-character non-word boxes, which is what `[` actually is.
+
+Review Focus 2 therefore remains **unmeasured**, and honestly so. Rotation handling
+has to be earned with a genuinely rotated fixture, not assumed from a plausible
+argument. Turning it on without one cost a high-severity warning.

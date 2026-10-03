@@ -82,3 +82,15 @@ def test_the_engine_is_only_constructed_once_under_concurrency():
     for t in threads:
         t.join()
     assert len(built) == 1
+
+
+def test_confidence_is_a_weak_filter_so_structure_does_the_work():
+    """MEASURED on the cold-medicine fixture: the correct ingredient line
+    '킬로르페니라민말레산염 2mg' scored 0.37 while the garbage box '[' scored 0.53.
+    Confidence therefore cannot separate real text from noise here — a floor high
+    enough to drop the garbage also drops the ingredient. So the floor only
+    removes degenerate boxes, and single-character non-word boxes go by shape."""
+    from ilgeojwo.ocr.reader import keep_confident
+    rows = [(None, "킬로르페니라민말레산염 2mg", 0.37), (None, "[", 0.53),
+            (None, "·", 0.91), (None, "", 0.99)]
+    assert keep_confident(rows, 0.05) == "킬로르페니라민말레산염 2mg"
