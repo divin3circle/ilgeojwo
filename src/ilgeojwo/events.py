@@ -37,6 +37,15 @@ def log_scan(event: ScanEvent) -> None:
         log.warning(line)
 
 
+def log_page(index: int, total: int, ms: int) -> None:
+    """Per-page progress. A long PDF otherwise looks like a hang."""
+    log.info(f"  page {index}/{total} read in {ms}ms")
+
+
+def log_stage(what: str) -> None:
+    log.info(f"  {what}...")
+
+
 def configure(level: int = logging.INFO) -> None:
     """Quiet, single-line output. Called by the launcher, never on import."""
     handler = logging.StreamHandler()

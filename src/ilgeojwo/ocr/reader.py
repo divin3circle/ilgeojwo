@@ -29,7 +29,10 @@ ENGINES = ("easyocr", "paddleocr-vl")
 # 8-page e-ticket produced 10,035 characters, which the model could not use at
 # all, while page 1 alone carried the passenger, the flights and the total.
 # Korean official documents front-load what matters.
-MAX_PDF_PAGES = 3
+# None means every page. The model is protected from the volume separately, by
+# MAX_EXTRACT_CHARS in extract/extractor.py — the OCR text itself stays complete
+# so the risk matcher and the verbatim Korean see the whole document.
+MAX_PDF_PAGES: int | None = None
 _PDF_RENDER_SCALE = 2.4  # roughly 170 dpi, enough for 9pt Korean
 
 # Deliberately very low. Confidence looked like the discriminator between real
@@ -99,7 +102,7 @@ class OcrEngine(Protocol):
     def read(self, path: Path) -> str: ...
 
 
-def _render_pdf_pages(path: Path, into: Path, max_pages: int) -> list[Path]:
+def _render_pdf_pages(path: Path, into: Path, max_pages: int | None) -> list[Path]:
     """Renders up to max_pages to PNGs. Returns [] if it is not a readable PDF."""
     try:
         import pypdfium2
@@ -111,7 +114,8 @@ def _render_pdf_pages(path: Path, into: Path, max_pages: int) -> list[Path]:
         return []
     rendered: list[Path] = []
     try:
-        for index in range(min(len(document), max_pages)):
+        wanted = len(document) if max_pages is None else min(len(document), max_pages)
+        for index in range(wanted):
             page = document[index]
             image = page.render(scale=_PDF_RENDER_SCALE).to_pil()
             out = into / f"page-{index + 1:02d}.png"
@@ -124,18 +128,30 @@ def _render_pdf_pages(path: Path, into: Path, max_pages: int) -> list[Path]:
     return rendered
 
 
+def readable_enough(text: str, min_hangul: int) -> bool:
+    return len(_HANGUL_SYLLABLE.findall(text)) >= min_hangul
+
+
 def read_korean(path: Path, engine: OcrEngine, min_hangul: int,
-                max_pdf_pages: int = MAX_PDF_PAGES) -> OcrResult:
+                max_pdf_pages: int | None = MAX_PDF_PAGES,
+                on_page=None) -> OcrResult:
     path = Path(path)
     if path.suffix.lower() == ".pdf":
         import tempfile
+        import time
 
         with tempfile.TemporaryDirectory() as workdir:
             pages = _render_pdf_pages(path, Path(workdir), max_pdf_pages)
-            text = "\n".join(engine.read(page) for page in pages)
+            parts = []
+            for number, page in enumerate(pages, start=1):
+                started = time.monotonic()
+                parts.append(engine.read(page))
+                if on_page is not None:
+                    on_page(number, len(pages), int((time.monotonic() - started) * 1000))
+            text = "\n".join(parts)
     else:
         text = engine.read(path)
-    return OcrResult(text=text, readable=len(_HANGUL_SYLLABLE.findall(text)) >= min_hangul)
+    return OcrResult(text=text, readable=readable_enough(text, min_hangul))
 
 
 class EasyOcrEngine:

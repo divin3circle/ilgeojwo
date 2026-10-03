@@ -143,3 +143,37 @@ def test_the_page_tells_her_when_a_card_could_not_be_translated(tmp_path):
     page = _client(tmp_path, "x").get("/").text
     assert "untranslated" in page
     assert "could not be translated" in page.lower()
+
+
+def test_several_photos_are_read_as_one_document(tmp_path):
+    """Scanning page 1, then page 2, then page 3 of a letter should produce one
+    card, not three — the deadline may be on any of them."""
+    class PagedEngine:
+        loaded = False
+
+        def __init__(self):
+            self.n = 0
+
+        def read(self, path):
+            self.n += 1
+            return f"출입국관리사무소 체류기간 연장허가 {self.n}쪽 납부기한 2026년 10월 5일"
+
+    cfg = load_config(env={"ILGEOJWO_DB": str(tmp_path / "t.db")})
+    c = TestClient(create_app(cfg, PagedEngine(), FakeLlm(GOOD)))
+    r = c.post("/scan", data={"lens": "document"}, files=[
+        ("image", ("p1.png", io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"0" * 32), "image/png")),
+        ("image", ("p2.png", io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"0" * 32), "image/png")),
+        ("image", ("p3.png", io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"0" * 32), "image/png")),
+    ])
+    assert r.status_code == 200
+    body = r.json()
+    assert "1쪽" in body["ocr_text"] and "3쪽" in body["ocr_text"]
+    assert body["card"]["deadline"] == "2026-10-05"
+
+
+def test_the_page_can_offer_a_live_scanner_where_the_browser_allows_it(tmp_path):
+    """getUserMedia needs a secure context. Over http://192.168.x.x it is blocked,
+    so the page must detect that and fall back rather than show a dead button."""
+    page = _client(tmp_path, "x").get("/").text
+    assert "isSecureContext" in page
+    assert "getUserMedia" in page

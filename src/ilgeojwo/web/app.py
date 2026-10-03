@@ -13,11 +13,11 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from ..config import Config
-from ..events import ScanEvent, log_scan
+from ..events import ScanEvent, log_page, log_scan, log_stage
 from ..extract.extractor import (
     LlmClient, ModelUnavailable, extract_document, extract_label,
 )
-from ..ocr.reader import OcrEngine, read_korean
+from ..ocr.reader import OcrEngine, OcrResult, read_korean, readable_enough
 from ..risk.matcher import match_risks
 from ..risk.rules import load_rules
 from ..store.db import list_scans, save_scan
@@ -70,43 +70,65 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
     # the event loop they freeze the page itself for the whole scan. FastAPI runs
     # a sync handler in a threadpool.
     @app.post("/scan")
-    def scan(request: Request, image: UploadFile = File(...), lens: str = Form(...)):
+    def scan(request: Request, image: list[UploadFile] = File(...),
+             lens: str = Form(...)):
         _authorise(request)
         if lens not in LENSES:
             raise HTTPException(422, f"unknown lens: {lens!r}")
 
-        content_type = (image.content_type or "").lower()
-        if content_type not in IMAGE_TYPES:
-            raise HTTPException(
-                415, f"That is a {content_type or 'file of unknown type'}. "
-                     f"Send a photo or a PDF.")
+        sent = [u for u in image if u is not None]
+        if not sent:
+            raise HTTPException(422, "No photo was sent.")
+        for upload in sent:
+            content_type = (upload.content_type or "").lower()
+            if content_type not in IMAGE_TYPES:
+                raise HTTPException(
+                    415, f"That is a {content_type or 'file of unknown type'}. "
+                         f"Send a photo or a PDF.")
 
         uploads.mkdir(parents=True, exist_ok=True)
-        saved = uploads / f"{uuid.uuid4().hex}{Path(image.filename or '').suffix}"
-        size = 0
+        saved_paths: list[Path] = []
         try:
-            with saved.open("wb") as fh:
-                while chunk := image.file.read(1024 * 1024):
-                    size += len(chunk)
-                    if size > MAX_UPLOAD_BYTES:
-                        raise HTTPException(
-                            413, f"That photo is over "
-                                 f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB. Your phone "
-                                 f"camera can take a smaller one.")
-                    fh.write(chunk)
+            for upload in sent:
+                target = uploads / f"{uuid.uuid4().hex}{Path(upload.filename or '').suffix}"
+                size = 0
+                with target.open("wb") as fh:
+                    while chunk := upload.file.read(1024 * 1024):
+                        size += len(chunk)
+                        if size > MAX_UPLOAD_BYTES:
+                            raise HTTPException(
+                                413, f"That photo is over "
+                                     f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB. Your "
+                                     f"phone camera can take a smaller one.")
+                        fh.write(chunk)
+                saved_paths.append(target)
 
             started = time.monotonic()
-            ocr = read_korean(saved, ocr_engine, config.min_hangul)
+            # Several photos are one document: the deadline may be on any page.
+            texts = []
+            for number, target in enumerate(saved_paths, start=1):
+                kind = "PDF" if target.suffix.lower() == ".pdf" else "image"
+                log_stage(f"reading {kind} {number} of {len(saved_paths)}"
+                          if len(saved_paths) > 1 else f"reading the {kind}")
+                texts.append(read_korean(target, ocr_engine, config.min_hangul,
+                                         on_page=log_page).text)
+            joined = "\n".join(texts)
+            ocr = OcrResult(text=joined,
+                            readable=readable_enough(joined, config.min_hangul))
             ocr_ms = int((time.monotonic() - started) * 1000)
+            saved = saved_paths[0]
         except HTTPException:
-            saved.unlink(missing_ok=True)
+            for target in saved_paths:
+                target.unlink(missing_ok=True)
             raise
         except ModelUnavailable as exc:
-            saved.unlink(missing_ok=True)
+            for target in saved_paths:
+                target.unlink(missing_ok=True)
             raise HTTPException(503, str(exc)) from exc
         except Exception as exc:
             # Spec §7: name the component and the fix. Never four words.
-            saved.unlink(missing_ok=True)
+            for target in saved_paths:
+                target.unlink(missing_ok=True)
             raise HTTPException(
                 503,
                 f"Could not read the image.\n"
@@ -135,6 +157,7 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
                 "ocr_text": ocr.text,
             })
 
+        log_stage("asking the language model")
         llm_started = time.monotonic()
         try:
             if lens == "label":

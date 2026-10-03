@@ -43,3 +43,20 @@ def test_an_ok_scan_is_info_not_warning(caplog):
         log_scan(ScanEvent(lens="document", status="ok", ocr_ms=1, llm_ms=1,
                            ocr_chars=10, warnings=0, approximate=0))
     assert caplog.records[-1].levelno == logging.INFO
+
+
+def test_page_progress_is_logged_without_content(caplog):
+    from ilgeojwo.events import log_page
+    with caplog.at_level(logging.INFO, logger="ilgeojwo"):
+        log_page(2, 8, 29100)
+    assert "page 2/8" in caplog.text
+    assert "29100ms" in caplog.text
+
+
+def test_stage_starts_are_logged_so_silence_is_never_the_whole_story(caplog):
+    from ilgeojwo.events import log_stage
+    with caplog.at_level(logging.INFO, logger="ilgeojwo"):
+        log_stage("reading the image")
+        log_stage("asking the language model")
+    assert "reading the image" in caplog.text
+    assert "asking the language model" in caplog.text

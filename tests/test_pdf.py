@@ -66,3 +66,24 @@ def test_a_pdf_that_renders_to_nothing_is_unreadable_not_an_error(tmp_path):
     broken.write_bytes(b"not actually a pdf")
     result = read_korean(broken, CountingEngine([]), min_hangul=10)
     assert result.readable is False
+
+
+def test_every_page_is_read_by_default(tmp_path):
+    engine = CountingEngine(["가나다라마바사"] * 12)
+    read_korean(_pdf(tmp_path, 12), engine, min_hangul=3)
+    assert len(engine.calls) == 12
+
+
+def test_progress_is_reported_per_page(tmp_path):
+    """A 12-page scan takes minutes. Silence for minutes looks like a hang."""
+    seen = []
+    engine = CountingEngine(["가나다라마바사"] * 3)
+    read_korean(_pdf(tmp_path, 3), engine, min_hangul=3,
+                on_page=lambda i, total, ms: seen.append((i, total)))
+    assert seen == [(1, 3), (2, 3), (3, 3)]
+
+
+def test_an_explicit_cap_is_still_honoured(tmp_path):
+    engine = CountingEngine(["가나다라마바사"] * 9)
+    read_korean(_pdf(tmp_path, 9), engine, min_hangul=3, max_pdf_pages=2)
+    assert len(engine.calls) == 2

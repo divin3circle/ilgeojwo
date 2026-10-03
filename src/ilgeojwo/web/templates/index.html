@@ -112,6 +112,24 @@
     .thinking{text-align:center; color:var(--muted); font-size:.94rem; margin-top:26px}
     .disclaimer{color:var(--muted); font-size:.83rem; line-height:1.55;
                 border-top:1px solid var(--rule); margin-top:32px; padding-top:16px}
+    .shots{display:flex; flex-wrap:wrap; gap:7px; justify-content:center;
+           margin:18px 0 0}
+    .shot{display:flex; align-items:center; gap:7px; background:var(--sheet);
+          border:1px solid var(--rule); border-radius:999px; padding:6px 8px 6px 12px;
+          font-size:.84rem}
+    .shot button{background:none; border:0; color:var(--muted); cursor:pointer;
+                 font-size:1rem; line-height:1; padding:0 2px; font-family:inherit}
+    .scanner{position:fixed; inset:0; background:#000; z-index:50; display:none;
+             flex-direction:column}
+    .scanner.on{display:flex}
+    .scanner video{flex:1; width:100%; object-fit:cover; background:#000}
+    .scanbar{display:flex; align-items:center; justify-content:space-between;
+             padding:18px 22px calc(26px + env(safe-area-inset-bottom)); background:#000}
+    .scanbar button{background:none; border:0; color:#fff; font-size:1rem;
+                    font-family:inherit; cursor:pointer; min-width:74px}
+    .shutter{width:68px; height:68px; border-radius:50%; background:#fff;
+             border:4px solid rgba(255,255,255,.35)}
+    .scancount{color:#fff; font-size:.9rem; text-align:center; padding:10px}
     @media (prefers-reduced-motion:reduce){*{transition:none !important}}
   </style>
 </head>
@@ -145,12 +163,27 @@
         <span class="ring"><svg width="23" height="23" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="3"/><circle cx="8.5" cy="10" r="1.6"/><path d="M3.5 17l5-4.5 4 3.5 3-2.5 5 4"/></svg></span>
         Choose a file
       </button>
-      <input id="lib" type="file" accept="image/*,application/pdf,.pdf">
+      <input id="lib" type="file" accept="image/*,application/pdf,.pdf" multiple>
+      <button class="source" type="button" id="scanbtn" hidden>
+        <span class="ring"><svg width="23" height="23" viewBox="0 0 24 24"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/><path d="M3 12h18"/></svg></span>
+        Scan pages
+      </button>
     </div>
 
+    <div class="shots" id="shots"></div>
     <p class="chosen" id="chosen">Nothing chosen yet</p>
     <button class="go" type="submit" id="go" disabled>Read it</button>
   </form>
+
+  <div class="scanner" id="scanner">
+    <video id="video" playsinline muted></video>
+    <p class="scancount" id="scancount">No pages captured</p>
+    <div class="scanbar">
+      <button type="button" id="scancancel">Cancel</button>
+      <button type="button" class="shutter" id="shutter" aria-label="Capture page"></button>
+      <button type="button" id="scandone">Done</button>
+    </div>
+  </div>
 
   <div id="out"></div>
 
@@ -174,15 +207,74 @@ const line = (k, v) => v ? `<div class="line"><div class="k">${k}</div><div clas
 
 const cam = document.getElementById('cam'), lib = document.getElementById('lib');
 const chosen = document.getElementById('chosen'), go = document.getElementById('go');
+const shots = document.getElementById('shots');
 document.getElementById('pick').addEventListener('click', () => lib.click());
-let file = null;
-[cam, lib].forEach(i => i.addEventListener('change', () => {
-  file = i.files && i.files[0] ? i.files[0] : null;
-  chosen.innerHTML = file
-    ? `<span class="dot"></span>${esc(file.name)}`
+
+// Several photos are one document. Tap Take a photo again to add another page.
+let pages = [];
+function renderPages(){
+  shots.innerHTML = pages.map((p, i) =>
+    `<span class="shot">${esc(p.name || `Page ${i+1}`)}<button type="button" data-i="${i}" aria-label="Remove">×</button></span>`
+  ).join('');
+  chosen.innerHTML = pages.length
+    ? `<span class="dot"></span>${pages.length} page${pages.length === 1 ? '' : 's'} ready`
     : 'Nothing chosen yet';
-  go.disabled = !file;
+  go.disabled = pages.length === 0;
+}
+shots.addEventListener('click', e => {
+  const i = e.target.dataset && e.target.dataset.i;
+  if (i !== undefined){ pages.splice(Number(i), 1); renderPages(); }
+});
+[cam, lib].forEach(i => i.addEventListener('change', () => {
+  pages = pages.concat(Array.from(i.files || []));
+  i.value = '';
+  renderPages();
 }));
+renderPages();
+
+/* A live viewfinder needs a secure context: browsers block getUserMedia over
+   plain http://192.168.x.x. Where that is the case the button stays hidden and
+   Take a photo (the native camera) does the job instead. */
+const canScan = window.isSecureContext &&
+  !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+const scanner = document.getElementById('scanner'), video = document.getElementById('video');
+const scancount = document.getElementById('scancount');
+let stream = null, scanned = 0;
+if (canScan){
+  const scanbtn = document.getElementById('scanbtn');
+  scanbtn.hidden = false;
+  const stop = () => { if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } };
+  const close = () => { stop(); scanner.classList.remove('on'); };
+  scanbtn.addEventListener('click', async () => {
+    try{
+      stream = await navigator.mediaDevices.getUserMedia(
+        { video: { facingMode: { ideal: 'environment' } }, audio: false });
+    }catch(_){
+      chosen.textContent = 'The camera was not allowed. Use Take a photo instead.';
+      return;
+    }
+    scanned = 0; scancount.textContent = 'No pages captured';
+    video.srcObject = stream; await video.play();
+    scanner.classList.add('on');
+  });
+  document.getElementById('shutter').addEventListener('click', () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      scanned += 1;
+      pages.push(new File([blob], `scan-${scanned}.jpg`, { type: 'image/jpeg' }));
+      scancount.textContent = `${scanned} page${scanned === 1 ? '' : 's'} captured`;
+      renderPages();
+    }, 'image/jpeg', 0.92);
+  });
+  document.getElementById('scandone').addEventListener('click', close);
+  document.getElementById('scancancel').addEventListener('click', () => {
+    pages = pages.filter(p => !/^scan-\d+\.jpg$/.test(p.name));
+    renderPages(); close();
+  });
+}
 
 const warnBlock = w => `<div class="w w-${esc(w.severity)}">
   ${w.approximate ? '<span class="maybe">Possible — the letters may have been misread</span>' : ''}
@@ -210,11 +302,11 @@ refreshHistory();
 
 f.addEventListener('submit', async e => {
   e.preventDefault();
-  if (!file) return;
+  if (!pages.length) return;
   go.disabled = true;
-  out.innerHTML = '<p class="thinking">Reading. The first one takes about a minute while the models load.</p>';
+  out.innerHTML = `<p class="thinking">Reading ${pages.length} page${pages.length === 1 ? '' : 's'}. The first scan takes about a minute while the models load.</p>`;
   const body = new FormData();
-  body.append('image', file);
+  pages.forEach(p => body.append('image', p));
   body.append('lens', f.querySelector('input[name=lens]:checked').value);
 
   let d;
