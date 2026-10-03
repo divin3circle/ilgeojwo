@@ -1,4 +1,4 @@
-"""Find the LAN address and show a QR code, so her phone joins in one scan."""
+"""Find the LAN address and show a QR code, so a phone joins in one scan."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def print_qr(url: str) -> None:
     qr.add_data(url)
     qr.make()
     qr.print_ascii(invert=True)
-    print(f"\n  Point her phone camera at this, or open:  {url}\n")
+    print(f"\n  Scan this with your phone camera, or open:  {url}\n")
     if "127.0.0.1" in url:
         print("  WARNING: that is a loopback address. This laptop is not on WiFi,")
-        print("  so her phone cannot reach it. Join a network and restart.\n")
+        print("  so a phone cannot reach it. Join a WiFi network and restart.\n")

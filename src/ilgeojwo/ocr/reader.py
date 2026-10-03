@@ -113,9 +113,17 @@ class EasyOcrEngine:
         return self._reader is not None
 
     def _build(self):
-        import easyocr
+        import warnings
 
-        return easyocr.Reader(self._languages, gpu=self.gpu, verbose=False)
+        # EasyOCR builds a dynamically quantized model and PyTorch warns about
+        # the deprecated API it uses. Nothing here can act on it, and it lands in
+        # the terminal the user is reading for the pairing link.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module=r"torch\.")
+            warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"torch\.")
+            import easyocr
+
+            return easyocr.Reader(self._languages, gpu=self.gpu, verbose=False)
 
     def _ensure_reader(self) -> None:
         # The handler runs in a threadpool, so two concurrent first requests

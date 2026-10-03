@@ -2,84 +2,166 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>읽어줘</title>
   <style>
-    :root { --bg:#faf9f7; --fg:#1d1b19; --muted:#6b6560; --line:#e3ddd6;
-            --card:#fff; --warn:#8c2f16; --warnbg:#fdf0ec; }
-    @media (prefers-color-scheme: dark) {
-      :root { --bg:#17161a; --fg:#f0ece6; --muted:#9a938c; --line:#2f2c33;
-              --card:#1f1e23; --warn:#ff9a7a; --warnbg:#2b1a16; } }
-    * { box-sizing:border-box }
-    body { margin:0; padding:24px 16px 64px; background:var(--bg); color:var(--fg);
-           font:16px/1.55 ui-sans-serif,system-ui,-apple-system,sans-serif;
-           max-width:620px; margin-inline:auto; }
-    h1 { font-size:1.6rem; margin:0 0 4px }
-    .sub { color:var(--muted); margin:0 0 24px; font-size:.9rem }
-    .lens { display:flex; gap:8px; margin-bottom:16px }
-    .lens label { flex:1; text-align:center; padding:10px; border:1px solid var(--line);
-                  border-radius:10px; cursor:pointer; background:var(--card) }
-    .lens input { display:none }
-    .lens input:checked + span { font-weight:600 }
-    .lens label:has(input:checked) { border-color:var(--fg) }
-    .pick { display:flex; gap:8px }
-    .pickbtn { flex:1; text-align:center; padding:16px 10px; border-radius:10px;
-               border:1px solid var(--line); background:var(--card); cursor:pointer;
-               font-weight:600 }
-    .pickbtn:active { border-color:var(--fg) }
-    .chosen { color:var(--muted); font-size:.85rem; margin:10px 0 0; text-align:center }
-    button { width:100%; padding:14px; border-radius:10px; font-size:1rem;
-             background:var(--fg); color:var(--bg); border:0; margin-top:12px;
-             cursor:pointer }
-    button[disabled] { opacity:.45; cursor:not-allowed }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
-            padding:16px; margin-top:20px }
-    .row { display:flex; gap:12px; padding:8px 0; border-bottom:1px solid var(--line) }
-    .row:last-child { border:0 }
-    .k { color:var(--muted); min-width:120px; font-size:.85rem }
-    .v { flex:1 }
-    .warn { background:var(--warnbg); color:var(--warn); border-radius:10px;
-            padding:12px; margin-top:12px; font-weight:600 }
-    .disclaimer { color:var(--muted); font-size:.8rem; margin-top:12px;
-                  border-top:1px solid var(--line); padding-top:12px }
-    pre { white-space:pre-wrap; background:var(--bg); padding:12px;
-          border-radius:8px; font-size:.85rem; margin:0 }
-    details { margin-top:12px }
+    /* No web fonts: this has to work with the network switched off. */
+    :root{
+      --paper:#f6f7f5; --ink:#141a1f; --muted:#6b7169; --rule:#d9dcd6;
+      --sheet:#ffffff; --seal:#c8372d; --sealink:#ffffff;
+      --amber:#b8762a; --amberbg:#fbf3e7; --quiet:#eef0ec; --badge:#f6f7f5;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --paper:#101316; --ink:#e8ebe6; --muted:#8e958c; --rule:#262b2f;
+        --sheet:#171b1f; --seal:#ff6b5c; --sealink:#1a0f0d;
+        --amber:#e0a048; --amberbg:#2a2017; --quiet:#1d2226; --badge:#222730;
+      }
+    }
+    *{box-sizing:border-box}
+    html{-webkit-text-size-adjust:100%}
+    body{
+      margin:0; background:var(--paper); color:var(--ink);
+      font:16px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",
+           "Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+      padding:26px 18px calc(40px + env(safe-area-inset-bottom));
+      max-width:520px; margin-inline:auto;
+    }
+    .wordmark{font-size:1.05rem; font-weight:600; color:var(--muted); margin:0 0 22px}
+    h1{font-size:2.1rem; line-height:1.14; letter-spacing:-.03em; font-weight:700;
+       margin:0 0 24px}
+    h1 .soft{color:var(--muted)}
+
+    /* Mode: two large tiles, the way the references open. */
+    .tiles{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+    .tile{position:relative; border:1px solid var(--rule); background:var(--sheet);
+          border-radius:20px; padding:18px 14px 16px; cursor:pointer;
+          display:flex; flex-direction:column; gap:12px; min-height:122px;
+          transition:background .14s,border-color .14s,color .14s}
+    .tile input{position:absolute; opacity:0; pointer-events:none}
+    .tile .badge{width:42px; height:42px; border-radius:50%; background:var(--badge);
+                 display:grid; place-items:center; transition:background .14s}
+    .tile .name{font-weight:650; font-size:1.02rem; line-height:1.25}
+    .tile .hint{font-size:.8rem; color:var(--muted); margin-top:-6px}
+    .tile:has(input:checked){background:var(--ink); color:var(--paper);
+                             border-color:var(--ink)}
+    .tile:has(input:checked) .badge{background:rgba(255,255,255,.16)}
+    .tile:has(input:checked) .hint{color:rgba(255,255,255,.72)}
+    .tile:has(input:checked) svg{stroke:var(--paper)}
+    .tile:focus-within{outline:2px solid var(--ink); outline-offset:2px}
+    svg{stroke:var(--ink); fill:none; stroke-width:1.6; stroke-linecap:round;
+        stroke-linejoin:round}
+
+    /* Source: circular icon actions in a row, labels beneath. */
+    .sources{display:flex; gap:26px; justify-content:center; margin:26px 0 0}
+    .source{background:none; border:0; padding:0; cursor:pointer; font-family:inherit;
+            display:flex; flex-direction:column; align-items:center; gap:8px;
+            color:var(--ink); font-size:.86rem; font-weight:550}
+    .source .ring{width:58px; height:58px; border-radius:50%; background:var(--sheet);
+                  border:1px solid var(--rule); display:grid; place-items:center;
+                  transition:border-color .14s}
+    .source:active .ring{border-color:var(--ink)}
+    input[type=file]{position:absolute; width:1px; height:1px; opacity:0}
+
+    .chosen{display:flex; align-items:center; justify-content:center; gap:8px;
+            color:var(--muted); font-size:.88rem; margin:20px 0 0; min-height:22px}
+    .chosen .dot{width:7px; height:7px; border-radius:50%; background:var(--muted)}
+    .go{display:block; width:100%; margin-top:16px; padding:18px; border:0;
+        border-radius:999px; background:var(--ink); color:var(--paper);
+        font-size:1.05rem; font-weight:650; font-family:inherit; cursor:pointer}
+    .go[disabled]{opacity:.35; cursor:not-allowed}
+
+    /* Result: a receipt, read top-down. */
+    .card{background:var(--sheet); border:1px solid var(--rule); border-radius:20px;
+          padding:20px; margin-top:26px}
+    .card h3{margin:0; font-size:1.15rem; font-weight:650; text-align:center}
+    .card .meta{text-align:center; color:var(--muted); font-size:.84rem; margin:4px 0 16px}
+    .due{text-align:center; margin:4px 0 18px}
+    .due .val{font-size:2rem; font-weight:700; letter-spacing:-.03em; display:block}
+    .due .lab{font-size:.82rem; color:var(--muted)}
+    .due .none{font-size:1.15rem; font-weight:500; color:var(--muted)}
+    .line{display:flex; gap:14px; padding:11px 0; border-top:1px solid var(--rule);
+          font-size:.94rem; align-items:baseline}
+    .line .k{color:var(--muted); flex:0 0 42%}
+    .line .v{flex:1; text-align:right; word-break:break-word}
+    .action{background:var(--quiet); border-radius:14px; padding:14px;
+            font-size:.98rem; line-height:1.45; margin:0 0 14px}
+
+    .w{border-radius:14px; padding:14px 15px; margin-bottom:10px; font-size:.94rem;
+       line-height:1.45}
+    .w-high{background:var(--seal); color:var(--sealink); font-weight:600}
+    .w-medium{background:var(--amberbg); color:var(--amber); font-weight:600}
+    .w-low{background:var(--quiet)}
+    .w .matched{display:block; margin-top:7px; font-size:.81rem; opacity:.85;
+                font-weight:400}
+    .maybe{display:block; font-size:.78rem; margin-bottom:5px; opacity:.9}
+    .note{color:var(--muted); font-size:.84rem; line-height:1.5; margin:14px 0 0;
+          border-top:1px solid var(--rule); padding-top:12px}
+    details{margin-top:12px}
+    summary{cursor:pointer; color:var(--muted); font-size:.88rem}
+    pre{white-space:pre-wrap; word-break:break-word; background:var(--paper);
+        padding:13px; border-radius:12px; font-size:.84rem; margin:9px 0 0;
+        font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+    .sechead{display:flex; align-items:baseline; justify-content:space-between;
+             margin:34px 0 6px}
+    .sechead h2{font-size:1rem; font-weight:650; margin:0}
+    .sechead span{font-size:.82rem; color:var(--muted)}
+    .saved .line:first-child{border-top:0}
+    .empty{color:var(--muted); font-size:.88rem; margin:6px 0 0}
+    .thinking{text-align:center; color:var(--muted); font-size:.94rem; margin-top:26px}
+    .disclaimer{color:var(--muted); font-size:.83rem; line-height:1.55;
+                border-top:1px solid var(--rule); margin-top:32px; padding-top:16px}
+    @media (prefers-reduced-motion:reduce){*{transition:none !important}}
   </style>
 </head>
 <body>
-  <h1>읽어줘</h1>
-  <p class="sub">Photograph it, or pick a picture you already have.
-  Nothing leaves this laptop.</p>
+  <p class="wordmark">읽어줘</p>
+  <h1>What do you<br>need read?</h1>
 
   <form id="f">
-    <div class="lens">
-      <label><input type="radio" name="lens" value="document" checked><span>Document</span></label>
-      <label><input type="radio" name="lens" value="label"><span>Medicine / label</span></label>
-    </div>
-    <div class="pick">
-      <label class="pickbtn">
-        <span>Take a photo</span>
-        <input type="file" accept="image/*" capture="environment" hidden>
+    <div class="tiles">
+      <label class="tile">
+        <input type="radio" name="lens" value="document" checked>
+        <span class="badge"><svg width="21" height="21" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></span>
+        <span class="name">Document</span>
+        <span class="hint">Letters, bills, forms</span>
       </label>
-      <label class="pickbtn">
-        <span>Choose a file</span>
-        <input type="file" accept="image/*" hidden>
+      <label class="tile">
+        <input type="radio" name="lens" value="label">
+        <span class="badge"><svg width="21" height="21" viewBox="0 0 24 24"><rect x="2.5" y="8.5" width="19" height="7" rx="3.5"/><path d="M12 8.5v7"/><path d="M7 5.5v1M17 5.5v1"/></svg></span>
+        <span class="name">Medicine or label</span>
+        <span class="hint">Boxes, packaging</span>
       </label>
     </div>
-    <p class="chosen" id="chosen">Nothing chosen yet.</p>
-    <button type="submit" id="go" disabled>Read it</button>
+
+    <div class="sources">
+      <label class="source" for="cam">
+        <span class="ring"><svg width="23" height="23" viewBox="0 0 24 24"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h2L9 4h6l1.5 2h2A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.4"/></svg></span>
+        Take a photo
+      </label>
+      <input id="cam" type="file" accept="image/*" capture="environment">
+      <button class="source" type="button" id="pick">
+        <span class="ring"><svg width="23" height="23" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="3"/><circle cx="8.5" cy="10" r="1.6"/><path d="M3.5 17l5-4.5 4 3.5 3-2.5 5 4"/></svg></span>
+        Choose a file
+      </button>
+      <input id="lib" type="file" accept="image/*">
+    </div>
+
+    <p class="chosen" id="chosen">Nothing chosen yet</p>
+    <button class="go" type="submit" id="go" disabled>Read it</button>
   </form>
 
   <div id="out"></div>
-  <h2 style="font-size:1rem;margin:28px 0 0">Saved, soonest first</h2>
-  <div id="history"></div>
+
+  <div class="sechead"><h2>Saved</h2><span id="savedcount"></span></div>
+  <div class="saved" id="history"></div>
 
   <p class="disclaimer">
     This is a reading aid, <strong>not medical advice</strong>. It does not know
     your medical history, it does not diagnose, and it never recommends a dose.
-    It tells you what is printed on the box and flags ingredients against a list
-    you control. Always confirm with your pharmacist or doctor.
+    It tells you what is printed and flags ingredients against a list you control.
+    Always confirm with your pharmacist or doctor.
   </p>
 
 <script>
@@ -88,85 +170,114 @@ const TOKEN = new URLSearchParams(location.search).get('t');
 const withToken = p => TOKEN ? `${p}${p.includes('?') ? '&' : '?'}t=${encodeURIComponent(TOKEN)}` : p;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const row = (k, v) => v ? `<div class="row"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>` : '';
+const line = (k, v) => v ? `<div class="line"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>` : '';
 
-async function refreshHistory() {
-  try {
+const cam = document.getElementById('cam'), lib = document.getElementById('lib');
+const chosen = document.getElementById('chosen'), go = document.getElementById('go');
+document.getElementById('pick').addEventListener('click', () => lib.click());
+let file = null;
+[cam, lib].forEach(i => i.addEventListener('change', () => {
+  file = i.files && i.files[0] ? i.files[0] : null;
+  chosen.innerHTML = file
+    ? `<span class="dot"></span>${esc(file.name)}`
+    : 'Nothing chosen yet';
+  go.disabled = !file;
+}));
+
+const warnBlock = w => `<div class="w w-${esc(w.severity)}">
+  ${w.approximate ? '<span class="maybe">Possible — the letters may have been misread</span>' : ''}
+  ${esc(w.message)}
+  ${(w.matched||[]).length ? `<span class="matched">Matched: ${esc(w.matched.join(', '))}</span>` : ''}
+</div>`;
+
+async function refreshHistory(){
+  try{
     const rows = await (await fetch(withToken('/scans'))).json();
+    document.getElementById('savedcount').textContent =
+      rows.length ? `${rows.length} scan${rows.length === 1 ? '' : 's'}` : '';
     document.getElementById('history').innerHTML = rows.length === 0
-      ? '<p class="sub">Nothing saved yet.</p>'
+      ? '<p class="empty">Scans you read will appear here, soonest deadline first.</p>'
       : rows.map(r => {
           const c = JSON.parse(r.card_json || '{}');
-          const when = c.deadline || c.deadline_text || (r.status === 'unreadable' ? 'unreadable' : 'no date');
+          const when = c.deadline || c.deadline_text ||
+                       (r.status === 'unreadable' ? 'could not read' : 'no date');
           const what = c.doc_type || c.product_name || r.lens;
-          return `<div class="row"><div class="k">${esc(when)}</div><div class="v">${esc(what)}</div></div>`;
+          return `<div class="line"><div class="k">${esc(what)}</div><div class="v">${esc(when)}</div></div>`;
         }).join('');
-  } catch (_) { /* offline or unauthorised; the page still works */ }
+  }catch(_){ /* offline or not paired; the rest of the page still works */ }
 }
 refreshHistory();
 
-let chosenFile = null;
-const chosen = document.getElementById('chosen'), go = document.getElementById('go');
-f.querySelectorAll('.pickbtn input[type=file]').forEach(input => {
-  input.addEventListener('change', () => {
-    chosenFile = input.files && input.files[0] ? input.files[0] : null;
-    chosen.textContent = chosenFile ? chosenFile.name : 'Nothing chosen yet.';
-    go.disabled = !chosenFile;
-  });
-});
-
 f.addEventListener('submit', async e => {
   e.preventDefault();
-  if (!chosenFile) return;
-  out.innerHTML = '<div class="card">Reading… the first one takes about a minute.</div>';
+  if (!file) return;
+  go.disabled = true;
+  out.innerHTML = '<p class="thinking">Reading. The first one takes about a minute while the models load.</p>';
   const body = new FormData();
-  body.append('image', chosenFile);
+  body.append('image', file);
   body.append('lens', f.querySelector('input[name=lens]:checked').value);
-  const r = await fetch(withToken('/scan'), { method:'POST', body });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({detail: 'Something went wrong.'}));
-    out.innerHTML = `<div class="card"><div class="warn"><pre>${esc(err.detail)}</pre></div></div>`;
-    return;
+
+  let d;
+  try{
+    const r = await fetch(withToken('/scan'), { method:'POST', body });
+    if (!r.ok){
+      const err = await r.json().catch(() => ({detail:'The scan failed and gave no reason.'}));
+      out.innerHTML = `<div class="card"><div class="w w-high">${esc(err.detail)}</div></div>`;
+      go.disabled = false; return;
+    }
+    d = await r.json();
+  }catch(_){
+    out.innerHTML = '<div class="card"><div class="w w-high">Could not reach the laptop. Check you are on the same WiFi.</div></div>';
+    go.disabled = false; return;
   }
-  const d = await r.json();
-  const warnHtml = ws => (ws || []).map(w => `<div class="warn">${w.approximate ? 'POSSIBLE \u2014 the OCR may have misread this. ' : ''}${esc(w.message)}<br><small>matched: ${esc((w.matched||[]).join(', '))}</small></div>`).join('');
-  if (d.status === 'unreadable') {
-    out.innerHTML = `<div class="card">${esc(d.message)}${warnHtml(d.warnings)}
-      ${(d.warnings||[]).length ? '<div class="disclaimer">Not medical advice. Confirm with your pharmacist.</div>' : ''}
-      <details><summary>Original Korean</summary><pre>${esc(d.ocr_text)}</pre></details></div>`;
-    return;
-  }
-  const c = d.card;
-  if (c.warnings !== undefined) {
+  go.disabled = false;
+
+  const korean = `<details><summary>What was read, in Korean</summary><pre>${esc(d.ocr_text)}</pre></details>`;
+
+  if (d.status === 'unreadable'){
     out.innerHTML = `<div class="card">
-      ${row('Product', c.product_name)}
-      ${row('Kind', c.kind)}
-      ${c.ingredients_found
-          ? row('Ingredients', c.ingredients.join(', '))
-          : '<div class="warn">Could not identify the ingredients in this photo. Do not rely on this. Show the box to the pharmacist.</div>'}
-      ${row('Dosage, as printed', c.dosage_ko)}
-      ${row('Dosage, translated', c.dosage)}
-      ${c.dosage_ko ? '<div class="disclaimer">The translated dosage can be wrong \u2014 the model has mistranslated a frequency before. Trust the Korean line, and show it to the pharmacist.</div>' : ''}
-      ${c.warnings.map(w => `<div class="warn">${w.approximate ? 'POSSIBLE — the OCR may have misread this. ' : ''}${esc(w.message)}<br><small>matched: ${esc(w.matched.join(', '))}${w.approximate ? ' (approximately)' : ''} · seen in: ${esc(w.found_in.join(' + '))}</small></div>`).join('')}
-      ${c.warnings.length === 0 && c.ingredients_found
-          ? '<div class="disclaimer">Nothing on your risk list was found. That is <strong>not the same as safe</strong> — the OCR can misread a syllable, and the list only covers what is in it. Still show the box to the pharmacist.</div>'
-          : ''}
-      <div class="disclaimer">Not medical advice. A matched name does not prove the box contains it — Korean packaging names other drugs in its precautions. Confirm with your pharmacist.</div>
-      <details><summary>Original Korean</summary><pre>${esc(d.ocr_text)}</pre></details>
-    </div>`;
-    return;
+      <p class="action">${esc(d.message)}</p>
+      ${(d.warnings||[]).map(warnBlock).join('')}
+      ${(d.warnings||[]).length ? '<p class="note">Not medical advice. Confirm with your pharmacist.</p>' : ''}
+      ${korean}</div>`;
+    refreshHistory(); return;
   }
+
+  const c = d.card;
+  if (c.warnings !== undefined){
+    out.innerHTML = `<div class="card">
+      <h3>${esc(c.product_name)}</h3>
+      <p class="meta">${esc(c.kind)}</p>
+      ${c.warnings.length ? c.warnings.map(warnBlock).join('')
+        : '<p class="action">Nothing on your risk list was found.</p>'}
+      ${c.ingredients_found
+          ? line('Ingredients, as printed', c.ingredients_ko.join(', '))
+          : '<div class="w w-high">The ingredients could not be read from this photo. Do not rely on this. Show the box to the pharmacist.</div>'}
+      ${(c.ingredients_unverified||[]).length
+          ? line('Reported but not in the photo', c.ingredients_unverified.join(', ')) : ''}
+      ${line('Dosage, as printed', c.dosage_ko)}
+      ${line('Dosage, translated', c.dosage)}
+      <p class="note">${c.warnings.length === 0 && c.ingredients_found
+        ? 'Nothing matched is <strong>not the same as safe</strong> — letters can be misread, and the list only covers what is in it. Still show the box to the pharmacist.'
+        : 'Not medical advice. A matched name does not prove the box contains it — Korean packaging names other drugs in its precautions. Trust the Korean dosage line over the translation, and confirm with your pharmacist.'}</p>
+      ${korean}</div>`;
+    refreshHistory(); return;
+  }
+
   out.innerHTML = `<div class="card">
-    ${row('What this is', c.doc_type)}
-    ${row('From', c.sender)}
-    ${row('You must', c.action)}
-    ${row('By', c.deadline || 'No date found')}
-    ${row('Deadline as printed', c.deadline_text)}
-    ${row('Amount', c.amount)}
-    ${row('Where', c.location)}
-    ${d.status === 'partial' ? '<div class="warn">Only partly understood — read the Korean below.</div>' : ''}
-    <details><summary>Original Korean</summary><pre>${esc(d.ocr_text)}</pre></details>
-  </div>`;
+    <h3>${esc(c.doc_type)}</h3>
+    <p class="meta">${esc(c.sender)}</p>
+    <div class="due">
+      <span class="lab">Due</span>
+      ${c.deadline ? `<span class="val">${esc(c.deadline)}</span>`
+                   : '<span class="val none">No date found</span>'}
+      ${c.deadline_text ? `<span class="lab">as printed: ${esc(c.deadline_text)}</span>` : ''}
+    </div>
+    <p class="action">${esc(c.action)}</p>
+    ${line('Amount', c.amount)}
+    ${line('Where', c.location)}
+    ${d.status === 'partial' ? '<div class="w w-medium">Only partly understood. Read the Korean below.</div>' : ''}
+    ${korean}</div>`;
   refreshHistory();
 });
 </script>

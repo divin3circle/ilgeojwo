@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
 import uuid
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from ..config import Config
+from ..events import ScanEvent, log_scan
 from ..extract.extractor import (
     LlmClient, ModelUnavailable, extract_document, extract_label,
 )
@@ -94,7 +96,9 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
                                  f"camera can take a smaller one.")
                     fh.write(chunk)
 
+            started = time.monotonic()
             ocr = read_korean(saved, ocr_engine, config.min_hangul)
+            ocr_ms = int((time.monotonic() - started) * 1000)
         except HTTPException:
             saved.unlink(missing_ok=True)
             raise
@@ -118,6 +122,10 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
             # Otherwise a blister foil reading exactly "이부프로펜 200mg" (five
             # syllables, below the gate) would be silently cleared.
             found = match_risks([], ocr.text, rules) if lens == "label" else []
+            log_scan(ScanEvent(lens=lens, status="unreadable", ocr_ms=ocr_ms,
+                               llm_ms=0, ocr_chars=len(ocr.text),
+                               warnings=len(found),
+                               approximate=sum(1 for w in found if w.approximate)))
             save_scan(config.db_path, lens=lens, image_path=str(saved),
                       ocr_text=ocr.text, card_json="{}", status="unreadable")
             return JSONResponse({
@@ -128,6 +136,7 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
                 "ocr_text": ocr.text,
             })
 
+        llm_started = time.monotonic()
         try:
             if lens == "label":
                 card, status = extract_label(ocr.text, llm, rules)
@@ -146,6 +155,11 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
                 f"    ILGEOJWO_LLM_MODEL=joonoh/HyperCLOVAX-SEED-Text-Instruct-1.5B make run",
             ) from exc
 
+        llm_ms = int((time.monotonic() - llm_started) * 1000)
+        warnings = getattr(card, "warnings", [])
+        log_scan(ScanEvent(lens=lens, status=status, ocr_ms=ocr_ms, llm_ms=llm_ms,
+                           ocr_chars=len(ocr.text), warnings=len(warnings),
+                           approximate=sum(1 for w in warnings if w.get("approximate"))))
         card_json = card.model_dump_json()
         save_scan(config.db_path, lens=lens, image_path=str(saved),
                   ocr_text=ocr.text, card_json=card_json, status=status)
