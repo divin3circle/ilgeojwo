@@ -14,7 +14,7 @@ class FakeLlm:
         self.replies = list(replies)
         self.prompts = []
 
-    def complete(self, prompt):
+    def complete(self, prompt, schema=None):
         self.prompts.append(prompt)
         return self.replies.pop(0) if self.replies else "{}"
 
@@ -361,3 +361,30 @@ def test_the_prompt_asks_for_key_facts():
     llm = FakeLlm(ENGLISH_REPLY)
     extract_document("...", llm)
     assert "details" in llm.prompts[0]
+
+
+def test_the_model_is_constrained_to_the_card_shape():
+    """Measured: asked one focused question under a schema, the 2.4B returned the
+    correct issuer. Asked for eight fields in prose, it returned the translation
+    of a field heading. Constraining the output removes a whole class of failure."""
+    class RecordingLlm:
+        def __init__(self):
+            self.schemas = []
+
+        def complete(self, prompt, schema=None):
+            self.schemas.append(schema)
+            return ENGLISH_REPLY
+
+    llm = RecordingLlm()
+    extract_document("...", llm)
+    schema = llm.schemas[0]
+    assert schema is not None
+    assert schema["type"] == "object"
+    for field in ("doc_type", "sender", "action", "deadline_text", "amount", "details"):
+        assert field in schema["properties"], field
+
+
+def test_a_client_that_ignores_schemas_still_works():
+    """FakeLlm and any older client take the prompt alone."""
+    card, status = extract_document("...", FakeLlm(ENGLISH_REPLY))
+    assert status == "ok"

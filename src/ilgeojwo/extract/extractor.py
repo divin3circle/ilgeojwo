@@ -47,7 +47,49 @@ def _still_korean(data: dict) -> bool:
 
 
 class LlmClient(Protocol):
-    def complete(self, prompt: str) -> str: ...
+    def complete(self, prompt: str, schema: dict | None = None) -> str: ...
+
+
+# Ollama constrains generation to this shape, which removes two failure classes
+# outright: unparseable replies, and invented or missing keys. Measured: asked one
+# focused question under a schema the 2.4B returned the correct issuer, where the
+# same model given eight fields in prose returned the translation of a heading.
+_STR = {"type": "string"}
+DOCUMENT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "doc_type": _STR, "sender": _STR, "action": _STR,
+        "deadline_text": _STR, "issued_text": _STR, "amount": _STR, "location": _STR,
+        "details": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"label": _STR, "value": _STR},
+                "required": ["label", "value"],
+            },
+        },
+    },
+    "required": ["doc_type", "sender", "action", "deadline_text", "amount"],
+}
+
+LABEL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "product_name": _STR, "kind": _STR,
+        "ingredients_ko": {"type": "array", "items": _STR},
+        "ingredients": {"type": "array", "items": _STR},
+        "dosage": _STR, "dosage_ko": _STR,
+    },
+    "required": ["product_name", "ingredients_ko", "ingredients"],
+}
+
+
+def _ask(llm: LlmClient, prompt: str, schema: dict | None) -> str:
+    """Older clients and test fakes may not take a schema."""
+    try:
+        return llm.complete(prompt, schema)
+    except TypeError:
+        return llm.complete(prompt)
 
 
 def _parse_json(reply: str) -> dict | None:
@@ -141,7 +183,8 @@ def _to_card(data: dict, ocr_text: str = "") -> DocumentCard:
 def extract_document(ocr_text: str, llm: LlmClient) -> tuple[DocumentCard, str]:
     last: dict | None = None
     for prompt in (DOCUMENT, DOCUMENT_RETRY):
-        data = _parse_json(llm.complete(prompt.format(text=_for_model(ocr_text))))
+        data = _parse_json(_ask(llm, prompt.format(text=_for_model(ocr_text)),
+                                DOCUMENT_SCHEMA))
         if data is None:
             continue
         last = data
@@ -154,9 +197,12 @@ def extract_document(ocr_text: str, llm: LlmClient) -> tuple[DocumentCard, str]:
 
     # Last resort: stop asking it to extract, and ask it only to translate. A
     # narrow task succeeds where the full one does not.
-    translated = _parse_json(llm.complete(TRANSLATE.format(
+    translated = _parse_json(_ask(llm, TRANSLATE.format(
         doc_type=last.get("doc_type") or "", sender=last.get("sender") or "",
-        action=last.get("action") or "")))
+        action=last.get("action") or ""),
+        {"type": "object",
+         "properties": {"doc_type": _STR, "sender": _STR, "action": _STR},
+         "required": ["doc_type", "sender", "action"]}))
     if isinstance(translated, dict):
         merged = dict(last)
         for field in _MUST_BE_ENGLISH:
@@ -177,14 +223,15 @@ class OllamaClient:
     def __init__(self, url: str, model: str) -> None:
         self._url, self._model = url.rstrip("/"), model
 
-    def complete(self, prompt: str) -> str:
+    def complete(self, prompt: str, schema: dict | None = None) -> str:
         import urllib.error
         import urllib.request
 
-        body = json.dumps(
-            {"model": self._model, "prompt": prompt, "stream": False,
-             "options": {"temperature": 0}}
-        ).encode()
+        payload = {"model": self._model, "prompt": prompt, "stream": False,
+                   "options": {"temperature": 0}}
+        if schema is not None:
+            payload["format"] = schema
+        body = json.dumps(payload).encode()
         req = urllib.request.Request(
             f"{self._url}/api/generate", body, {"Content-Type": "application/json"}
         )
@@ -283,7 +330,7 @@ def _to_label_card(data: dict, ocr_text: str, rules: tuple[Rule, ...]) -> LabelC
 def extract_label(ocr_text: str, llm: LlmClient,
                   rules: tuple[Rule, ...]) -> tuple[LabelCard, str]:
     for prompt in (LABEL, LABEL_RETRY):
-        reply = llm.complete(prompt.format(text=_for_model(ocr_text)))
+        reply = _ask(llm, prompt.format(text=_for_model(ocr_text)), LABEL_SCHEMA)
         if (data := _parse_json(reply)) is not None:
             # Full text, not the shortened one: screening never gets less input.
             return _to_label_card(data, ocr_text, rules), "ok"

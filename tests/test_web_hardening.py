@@ -22,7 +22,7 @@ class FakeLlm:
     def __init__(self, reply="{}", raises=None):
         self.reply, self.raises = reply, raises
 
-    def complete(self, prompt):
+    def complete(self, prompt, schema=None):
         if self.raises:
             raise self.raises
         return self.reply

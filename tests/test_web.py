@@ -26,7 +26,7 @@ class FakeLlm:
     def __init__(self, *replies):
         self.replies = list(replies)
 
-    def complete(self, prompt):
+    def complete(self, prompt, schema=None):
         return self.replies.pop(0) if self.replies else "{}"
 
 
@@ -75,7 +75,7 @@ def test_an_unreadable_photo_never_calls_the_model(tmp_path):
     cfg = load_config(env={"ILGEOJWO_DB": str(tmp_path / "t.db")})
     llm = FakeLlm()
     calls = []
-    llm.complete = lambda p: calls.append(p) or "{}"
+    llm.complete = lambda p, schema=None: calls.append(p) or "{}"
     c = TestClient(create_app(cfg, FakeEngine(""), llm))
     c.post("/scan", files={"image": _png()}, data={"lens": "document"})
     assert calls == []
@@ -94,7 +94,7 @@ def test_a_stopped_model_gives_a_clear_message_not_an_opaque_500(tmp_path):
     from ilgeojwo.extract.extractor import ModelUnavailable
 
     class DeadLlm:
-        def complete(self, prompt):
+        def complete(self, prompt, schema=None):
             raise ModelUnavailable("Start the server with:   ollama serve")
 
     cfg = load_config(env={"ILGEOJWO_DB": str(tmp_path / "t.db")})

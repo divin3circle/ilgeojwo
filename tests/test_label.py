@@ -17,7 +17,7 @@ class FakeLlm:
         self.replies = list(replies)
         self.prompts = []
 
-    def complete(self, p):
+    def complete(self, p, schema=None):
         self.prompts.append(p)
         return self.replies.pop(0) if self.replies else "{}"
 
