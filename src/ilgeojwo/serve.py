@@ -37,7 +37,7 @@ def main() -> int:
 
     print_qr(pairing_url(port, token))
     print("  This link is the key. Anyone on this network who has it can read")
-    print("  every scan you have made, so do not post it anywhere.\n")
+    print("  every scan you have made, so do not post it anywhere.\n", flush=True)
     configure()
 
     uvicorn.run("ilgeojwo.web.wire:app", factory=True, host="0.0.0.0", port=port,
