@@ -210,6 +210,62 @@ mangled long one. Listing both the drug and its salts buys redundancy for free.
 and I had both assumed.** Neither was sufficient alone, and the second one only
 cost me running the thing and reading the output.
 
+### And then the whole thing paid off at once
+
+I started the real server, curled a medicine label at it, and read what came back.
+
+The language model's only job was transcription. Here is what it transcribed:
+
+```
+rendered:   이부프로펜          슈도에페드린염산염          클로르페니라민말레산염
+easyocr:    이부프로편          수도에페드린염산염          킬로르페니라민말레산염
+EXAONE:     "ibuprofen"        "cetirizine hydrochloride"   "ketofenilamine maleate"
+            correct             WRONG DRUG                   DOES NOT EXIST
+```
+
+`슈도에페드린` is pseudoephedrine, a decongestant. EXAONE called it
+**cetirizine** — an antihistamine, a different drug in a different class, stated
+with complete confidence. `클로르페니라민` became **"ketofenilamine,"** which is
+not a drug at all.
+
+Two of three ingredients wrong. And all three warnings fired:
+
+| Warning | Found via | How |
+|---|---|---|
+| NSAID (high) | `ingredients` | the model *fixed* the OCR's 이부프로편 |
+| Decongestant (medium) | **`ocr_text`** | "cetirizine" matched nothing; raw `에페드린` did |
+| Sedating antihistamine (low) | **`ocr_text`**, approximate | "ketofenilamine" matched nothing; fuzzy caught `클로르페니라민` |
+
+Read that middle row again. The model replaced a decongestant with an
+antihistamine, and the decongestant warning still appeared — because the matcher
+never trusted the model's list in the first place.
+
+The obvious way to build this is to let the model extract ingredients and check
+those. It is obvious, it is what I would have done without the spec in front of
+me, and on this one real box it would have dropped two of three warnings and put a
+wrong drug name on screen next to the one it kept.
+
+Spec §5.2 — *"the matcher runs against the raw OCR text as well as the extracted
+ingredient list"* — was written as a precaution against something I could not
+demonstrate. It turns out to be the only reason this box got screened correctly.
+
+### One more thing the same run broke
+
+The box says `1일 3회 1정 식후 복용` — one tablet, **three times** a day.
+
+EXAONE said: *"Take 1 tablet once daily after meals."*
+
+A wrong frequency on medication is not an acceptable translation error, and she
+has no way to check an English sentence against a Korean box. I did not try to
+make the model more accurate, because a 2.4B model will keep doing this. I stopped
+presenting its output as authoritative: the card now shows the Korean dosage line
+**verbatim, above** the translation, with the translation explicitly marked as
+untrustworthy. The Korean is the line she shows the pharmacist.
+
+That is the pattern this whole project converged on, three times, from three
+different directions: **let the model read, and never let it be the thing you
+trust.**
+
 
 ## Why Open Innovation Matters
 
@@ -275,6 +331,9 @@ that can deprecate the thing she depends on to read her visa letters.
 
 ## What does not work
 
+- **The model mistranslates drug names.** Measured, not theoretical: pseudoephedrine
+  became "cetirizine." The English ingredient list on the card is a convenience; the
+  warnings and the Korean text are the parts to trust.
 - **Fuzzy matching stops at one character.** Two substitutions in the same name,
   or a misread three-syllable name, still slip through. A clean result means
   "nothing on my list was found," never "this is safe" — and the card says that
