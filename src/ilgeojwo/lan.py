@@ -20,6 +20,11 @@ def lan_url(port: int, host: str | None = None) -> str:
     return f"http://{host or _discover_host()}:{port}"
 
 
+def pairing_url(port: int, token: str | None, host: str | None = None) -> str:
+    base = f"{lan_url(port, host)}/"
+    return f"{base}?t={token}" if token else base
+
+
 def print_qr(url: str) -> None:
     import qrcode
 

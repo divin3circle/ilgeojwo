@@ -46,3 +46,39 @@ def test_text_is_preserved_verbatim_including_whitespace():
     """Spec §3: the original Korean is always shown exactly as read."""
     raw = "제1항\n  납부기한\t2026년 10월 5일"
     assert read_korean(Path("x.jpg"), FakeEngine(raw), min_hangul=3).text == raw
+
+
+def test_low_confidence_boxes_are_dropped_so_the_readability_gate_means_something():
+    """EasyOCR decodes from a charset of precomposed syllables, so an upside-down
+    page yields plenty of confident-looking 가-힣 garbage rather than the isolated
+    jamo this module's docstring once assumed. Per-box confidence is the only
+    discriminator available, and `detail=0` was throwing it away."""
+    from ilgeojwo.ocr.reader import keep_confident
+    rows = [(None, "이부프로펜", 0.91), (None, "믜컕둏", 0.07), (None, "200mg", 0.74)]
+    assert keep_confident(rows, 0.3) == "이부프로펜\n200mg"
+
+
+def test_keep_confident_survives_malformed_rows():
+    from ilgeojwo.ocr.reader import keep_confident
+    assert keep_confident([None, (), ("x",), (None, "ok", 0.9)], 0.3) == "ok"
+
+
+def test_the_engine_is_only_constructed_once_under_concurrency():
+    """Two concurrent first requests would otherwise each build a Reader and
+    double the memory against the 3 GB budget."""
+    import threading
+    from ilgeojwo.ocr.reader import EasyOcrEngine
+    engine = EasyOcrEngine()
+    built = []
+
+    def fake_build():
+        built.append(1)
+        return object()
+
+    engine._build = fake_build
+    threads = [threading.Thread(target=engine._ensure_reader) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(built) == 1

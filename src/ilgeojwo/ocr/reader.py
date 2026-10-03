@@ -10,6 +10,7 @@ for that very backend. It is kept here, selectable, in case upstream fixes it.
 from __future__ import annotations
 
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -22,6 +23,26 @@ if TYPE_CHECKING:  # avoids a runtime dependency from ocr/ onto config
 _HANGUL_SYLLABLE = re.compile(r"[가-힣]")
 
 ENGINES = ("easyocr", "paddleocr-vl")
+
+# Boxes below this confidence are noise. EasyOCR decodes from a charset of
+# precomposed syllables, so a rotated or unreadable photo produces confident-
+# looking 가-힣 rather than isolated jamo — per-box confidence is the only
+# discriminator available, and detail=0 discarded it.
+MIN_BOX_CONFIDENCE = 0.3
+
+
+def keep_confident(rows: object, floor: float) -> str:
+    """Joins the text of boxes at or above `floor`. Never raises on odd rows."""
+    kept = []
+    for row in rows or ():
+        try:
+            _, text, confidence = row[0], row[1], row[2]
+        except (TypeError, IndexError, KeyError):
+            continue
+        if isinstance(text, str) and isinstance(confidence, (int, float)) \
+                and confidence >= floor:
+            kept.append(text)
+    return "\n".join(kept)
 
 
 @dataclass(frozen=True)
@@ -45,21 +66,38 @@ def read_korean(path: Path, engine: OcrEngine, min_hangul: int) -> OcrResult:
 class EasyOcrEngine:
     """Default engine. CPU-only, Korean + English, no transformers dependency."""
 
-    def __init__(self, languages: list[str] | None = None) -> None:
+    def __init__(self, languages: list[str] | None = None,
+                 min_confidence: float = MIN_BOX_CONFIDENCE) -> None:
         self._languages = list(languages or ["ko", "en"])
+        self._min_confidence = min_confidence
         self._reader = None
+        self._lock = threading.Lock()
 
     @property
     def loaded(self) -> bool:
         return self._reader is not None
 
-    def read(self, path: Path) -> str:
+    def _build(self):
         import easyocr
 
-        if self._reader is None:
-            self._reader = easyocr.Reader(self._languages, gpu=False, verbose=False)
-        lines = self._reader.readtext(str(path), detail=0, paragraph=True)
-        return "\n".join(str(line) for line in lines)
+        return easyocr.Reader(self._languages, gpu=False, verbose=False)
+
+    def _ensure_reader(self) -> None:
+        # The handler runs in a threadpool, so two concurrent first requests
+        # would otherwise each build a Reader and double the resident memory.
+        if self._reader is not None:
+            return
+        with self._lock:
+            if self._reader is None:
+                self._reader = self._build()
+
+    def read(self, path: Path) -> str:
+        self._ensure_reader()
+        rows = self._reader.readtext(
+            str(path), detail=1, paragraph=False,
+            rotation_info=[90, 180, 270],  # phone photos are routinely rotated
+        )
+        return keep_confident(rows, self._min_confidence)
 
 
 class PaddleOcrVlEngine:

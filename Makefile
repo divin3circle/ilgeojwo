@@ -7,6 +7,8 @@ setup:
 test:
 	uv run pytest -v
 
+golden:
+	uv run pytest tests/golden -m slow -v
+
 run:
-	@uv run python -c "from ilgeojwo.lan import lan_url, print_qr; print_qr(lan_url($(PORT)))"
-	@uv run uvicorn --factory ilgeojwo.web.wire:app --host 0.0.0.0 --port $(PORT)
+	@ILGEOJWO_PORT=$(PORT) uv run python -m ilgeojwo.serve

@@ -15,8 +15,8 @@ from ..config import Config
 from ..extract.extractor import (
     LlmClient, ModelUnavailable, extract_document, extract_label,
 )
-from ..risk.matcher import match_risks
 from ..ocr.reader import OcrEngine, read_korean
+from ..risk.matcher import match_risks
 from ..risk.rules import load_rules
 from ..store.db import list_scans, save_scan
 
@@ -26,35 +26,92 @@ PARTIAL_LABEL = (
     "was read is flagged below. Take another photo of the ingredients panel too."
 )
 LENSES = {"document", "label"}
+IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp",
+               "image/heic", "image/heif", "image/tiff", "image/bmp"}
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
-def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient) -> FastAPI:
+def _warning_dicts(warnings) -> list[dict]:
+    return [{"rule_id": w.rule_id, "severity": w.severity, "message": w.message,
+             "matched": list(w.matched), "found_in": list(w.found_in),
+             "approximate": w.approximate} for w in warnings]
+
+
+def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
+               token: str | None = None) -> FastAPI:
     app = FastAPI(title="읽어줘")
     uploads = config.db_path.parent / "uploads"
     # Loaded once, at startup, so a malformed rule file fails loudly here rather
     # than silently producing zero warnings on her first real scan.
     rules = load_rules(config.rules_path)
 
+    def _authorise(request: Request) -> None:
+        """She serves on 0.0.0.0 so her phone can reach it, and /scans returns the
+        full OCR text of every document she has scanned. Korean share-houses
+        commonly put every unit on one subnet."""
+        if token and request.query_params.get("t") != token:
+            raise HTTPException(401, "Open the link from the QR code on your laptop.")
+
     @app.get("/")
     def index(request: Request):
+        _authorise(request)
         return _TEMPLATES.TemplateResponse(request, "index.html", {})
 
     @app.get("/scans")
-    def scans():
+    def scans(request: Request):
+        _authorise(request)
         return list_scans(config.db_path)
 
+    # Deliberately `def`, not `async def`: OCR and the Ollama call block, and on
+    # the event loop they freeze the page itself for the whole scan. FastAPI runs
+    # a sync handler in a threadpool.
     @app.post("/scan")
-    async def scan(image: UploadFile = File(...), lens: str = Form(...)):
+    def scan(request: Request, image: UploadFile = File(...), lens: str = Form(...)):
+        _authorise(request)
         if lens not in LENSES:
             raise HTTPException(422, f"unknown lens: {lens!r}")
 
+        content_type = (image.content_type or "").lower()
+        if content_type not in IMAGE_TYPES:
+            extra = (" PDFs are not supported yet — open the PDF and photograph "
+                     "the page, or screenshot it." if "pdf" in content_type else "")
+            raise HTTPException(
+                415, f"That is a {content_type or 'file of unknown type'}, not a "
+                     f"photo.{extra}")
+
         uploads.mkdir(parents=True, exist_ok=True)
         saved = uploads / f"{uuid.uuid4().hex}{Path(image.filename or '').suffix}"
-        with saved.open("wb") as fh:
-            shutil.copyfileobj(image.file, fh)
+        size = 0
+        try:
+            with saved.open("wb") as fh:
+                while chunk := image.file.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > MAX_UPLOAD_BYTES:
+                        raise HTTPException(
+                            413, f"That photo is over "
+                                 f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB. Your phone "
+                                 f"camera can take a smaller one.")
+                    fh.write(chunk)
 
-        ocr = read_korean(saved, ocr_engine, config.min_hangul)
+            ocr = read_korean(saved, ocr_engine, config.min_hangul)
+        except HTTPException:
+            saved.unlink(missing_ok=True)
+            raise
+        except ModelUnavailable as exc:
+            saved.unlink(missing_ok=True)
+            raise HTTPException(503, str(exc)) from exc
+        except Exception as exc:
+            # Spec §7: name the component and the fix. Never four words.
+            saved.unlink(missing_ok=True)
+            raise HTTPException(
+                503,
+                f"Could not read the image.\n"
+                f"  {type(exc).__name__}: {exc}\n"
+                f"  If this mentions a missing model file, run:  ./setup.sh\n"
+                f"  If it mentions permissions, check that {uploads} is writable.",
+            ) from exc
+
         if not ocr.readable:
             # The model is never asked to interpret noise — but the matcher is
             # pure logic and costs nothing, so a label scan is still screened.
@@ -67,10 +124,7 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient) -> FastAPI
                 "status": "unreadable",
                 "message": PARTIAL_LABEL if found else UNREADABLE,
                 "card": None,
-                "warnings": [{"rule_id": w.rule_id, "severity": w.severity,
-                              "message": w.message, "matched": list(w.matched),
-                              "found_in": list(w.found_in),
-                              "approximate": w.approximate} for w in found],
+                "warnings": _warning_dicts(found),
                 "ocr_text": ocr.text,
             })
 
@@ -81,6 +135,17 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient) -> FastAPI
                 card, status = extract_document(ocr.text, llm)
         except ModelUnavailable as exc:
             raise HTTPException(503, str(exc)) from exc
+        except Exception as exc:
+            # Any other model failure — a read timeout on a slower laptop is the
+            # likeliest — must still name the way out rather than 500.
+            raise HTTPException(
+                503,
+                f"The language model failed while reading this.\n"
+                f"  {type(exc).__name__}: {exc}\n"
+                f"  On a slower laptop, switch to the smaller model:\n"
+                f"    ILGEOJWO_LLM_MODEL=joonoh/HyperCLOVAX-SEED-Text-Instruct-1.5B make run",
+            ) from exc
+
         card_json = card.model_dump_json()
         save_scan(config.db_path, lens=lens, image_path=str(saved),
                   ocr_text=ocr.text, card_json=card_json, status=status)

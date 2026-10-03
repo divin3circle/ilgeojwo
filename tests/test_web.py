@@ -46,7 +46,7 @@ def test_the_page_loads(tmp_path):
 
 
 def test_uploading_a_korean_document_returns_a_card(tmp_path):
-    c = _client(tmp_path, "출입국관리사무소 체류기간 연장허가 신청하십시오", GOOD)
+    c = _client(tmp_path, "출입국관리사무소 체류기간 연장허가 신청 납부기한 2026년 10월 5일 수수료 60,000원", GOOD)
     r = c.post("/scan", files={"image": _png()}, data={"lens": "document"})
     assert r.status_code == 200
     body = r.json()
@@ -111,3 +111,19 @@ def test_an_unknown_lens_is_rejected(tmp_path):
     c = _client(tmp_path, "출입국관리사무소 체류기간 연장허가")
     r = c.post("/scan", files={"image": _png()}, data={"lens": "nonsense"})
     assert r.status_code == 422
+
+
+def test_the_page_shows_the_deadline_as_printed_in_korean(tmp_path):
+    """dates.py claims 'the verbatim Korean text is always shown to the user'.
+    A notice reading 10월 5일까지 stores null — correctly — and she was shown only
+    'By: No date found' while deadline_text sat unrendered in the card."""
+    page = _client(tmp_path, "x").get("/").text
+    assert "deadline_text" in page
+
+
+def test_the_page_lists_saved_scans_by_deadline(tmp_path):
+    """Spec §3.1: cards are saved and listed, soonest deadline first. The sorting
+    and the DB were correct and unreachable — /scans returned raw JSON that the
+    page never fetched."""
+    page = _client(tmp_path, "x").get("/").text
+    assert "/scans" in page

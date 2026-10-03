@@ -28,7 +28,7 @@ GOOD = json.dumps({
 
 
 def test_a_clean_reply_becomes_a_complete_card():
-    card, status = extract_document("출입국 ...", FakeLlm(GOOD))
+    card, status = extract_document("출입국관리사무소 체류기간 연장허가 신청 납부기한 2026년 10월 5일 수수료 60,000원", FakeLlm(GOOD))
     assert status == "ok"
     assert card.doc_type == "Residence permit extension notice"
     assert card.deadline == date(2026, 10, 5)
@@ -103,3 +103,23 @@ def test_the_extraction_prompt_never_asks_the_model_for_a_judgement():
     p = llm.prompts[0].lower()
     for forbidden in ("safe", "danger", "should she", "recommend", "advise"):
         assert forbidden not in p
+
+
+def test_an_issue_date_landing_in_the_deadline_field_yields_no_deadline():
+    """Review Focus 1's only real defence was prompt wording, from a model this
+    branch measured turning 'three times a day' into 'once daily'. If the two
+    dates come back identical, the deadline is not known."""
+    reply = json.dumps({"doc_type": "Utility bill",
+                        "deadline_text": "2026년 10월 1일",
+                        "issued_text": "2026년 10월 1일"})
+    card, _ = extract_document("발행일 2026년 10월 1일", FakeLlm(reply))
+    assert card.deadline is None
+    assert card.deadline_text == "2026년 10월 1일"
+
+
+def test_a_deadline_the_scan_does_not_contain_is_not_treated_as_printed():
+    """A model that reads 10월 5일까지 and helpfully supplies the year has
+    invented a deadline, which the Global Constraint forbids."""
+    reply = json.dumps({"doc_type": "Notice", "deadline_text": "2026년 10월 5일"})
+    card, _ = extract_document("납부기한 10월 5일까지", FakeLlm(reply))
+    assert card.deadline is None

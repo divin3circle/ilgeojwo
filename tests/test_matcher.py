@@ -274,3 +274,26 @@ def test_short_high_stakes_names_are_fuzzy_when_the_rule_file_says_so(misread, e
     the front-panel-photo hole — the names where one misread syllable costs most.
     A global integer cannot tell those from 이산화황, so the rule file decides."""
     assert expected in ids(match_risks([], f"성분: {misread}", RULES))
+
+
+def test_an_enumeration_boundary_is_never_asserted_as_an_exact_match():
+    """살리실산 (ubiquitous in Korean skincare) beside 메틸파라벤 (ubiquitous
+    preservative) fused into 살리실산메틸 — methyl salicylate — and fired a
+    high-severity NSAID warning labelled EXACT, so the POSSIBLE hedge never
+    appeared. Fusion is required by Review Focus 3, so the fix is to hedge it,
+    not remove it."""
+    for label in ("전성분: 살리실산·메틸파라벤", "전성분: 살리실산 메틸파라벤",
+                  "전성분: 살리실산\n메틸파라벤"):
+        for w in match_risks([], label, RULES):
+            assert w.approximate is True, f"{label}: {w.rule_id} asserted as exact"
+
+
+def test_a_genuine_methyl_salicylate_still_fires_exactly():
+    hits = [w for w in match_risks([], "성분: 살리실산메틸 10%", RULES) if w.rule_id == "nsaid"]
+    assert hits and hits[0].approximate is False
+
+
+def test_an_ocr_line_break_inside_a_name_still_fires_as_a_possible():
+    hits = [w for w in match_risks([], "성분\n이부\n프로펜 200mg", RULES)
+            if w.rule_id == "nsaid"]
+    assert hits and hits[0].approximate is True

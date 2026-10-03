@@ -111,7 +111,7 @@ def test_the_label_lens_works_over_http(tmp_path):
 
 def test_the_document_lens_is_unaffected_by_the_label_branch(tmp_path):
     good_doc = json.dumps({"doc_type": "Notice", "deadline_text": "2026년 10월 5일"})
-    c = _client(tmp_path, "출입국관리사무소 체류기간 연장허가 신청", good_doc)
+    c = _client(tmp_path, "출입국관리사무소 체류기간 연장허가 신청 납부기한 2026년 10월 5일 수수료 60,000원", good_doc)
     r = c.post("/scan", files={"image": _png()}, data={"lens": "document"})
     assert r.json()["card"]["deadline"] == "2026-10-05"
     assert "warnings" not in r.json()["card"]

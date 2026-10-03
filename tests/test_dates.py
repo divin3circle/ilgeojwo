@@ -38,5 +38,33 @@ def test_a_date_with_no_year_is_none_not_this_year():
     assert parse_korean_date("기한 10. 5.") is None
 
 
-def test_takes_the_first_full_date_when_several_are_present():
-    assert parse_korean_date("발행 2026년 9월 1일 / 기한 2026년 10월 5일") == date(2026, 9, 1)
+
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("2026.10.1~2026.10.5", date(2026, 10, 5)),
+    ("신청기간: 2026년 10월 1일 ~ 2026년 10월 5일", date(2026, 10, 5)),
+    ("접수기간 2026-10-01 ~ 2026-10-05", date(2026, 10, 5)),
+    ("발행 2026년 9월 1일 / 기한 2026년 10월 5일", date(2026, 10, 5)),
+])
+def test_the_later_date_wins_because_a_korean_range_puts_the_deadline_last(raw, expected):
+    """Korean forms a deadline as 접수기간 A~B or 신청기간 A ~ B, and the
+    actionable date is B. An earlier version took the first match, which on
+    '발행 … / 기한 …' returned the ISSUE date — the substitution Review Focus 1
+    exists to forbid."""
+    assert parse_korean_date(raw) == expected
+
+
+@pytest.mark.parametrize("raw", [
+    "제2026-10-05호",
+    "문서번호 출입국-2026-09-30",
+    "제 2026-10-05 호",
+])
+def test_a_document_reference_number_is_not_a_deadline(raw):
+    assert parse_korean_date(raw) is None
+
+
+@pytest.mark.parametrize("raw", ["단기 4359년 10월 5일", "7026년 10월 5일", "1026-10-05"])
+def test_an_implausible_year_is_rejected_rather_than_displayed_as_a_deadline(raw):
+    """A 2026->7026 misread would otherwise display and sort as a real deadline."""
+    assert parse_korean_date(raw) is None

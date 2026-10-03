@@ -11,5 +11,8 @@ data/uploads/
 tests/golden/fixtures/*
 !tests/golden/fixtures/.gitkeep
 !tests/golden/fixtures/*.synthetic.png
-# Expectations for her real photos can name her too.
-tests/golden/expected/*.private.json
+# Expectations for her real photos transcribe facts from them — deadline, amount,
+# phrases from an immigration letter. Deny by default, like fixtures/, so a
+# differently-named file cannot be committed by accident.
+tests/golden/expected/*
+!tests/golden/expected/*.synthetic.json

@@ -26,6 +26,12 @@ make run        # serves on your network and prints a QR code
 Scan the QR code with your phone — on the same WiFi — and you are in. Photograph
 a letter in the hallway; the laptop in the next room reads it.
 
+**The link in the QR code contains a one-time key, and it is the only way in.**
+The server has to listen on the whole network for your phone to reach it, and the
+saved-scan list contains the full text of everything you have scanned — so anyone
+on your WiFi who has that link can read it. Don't paste it anywhere. A fresh key
+is minted every time you run `make run`.
+
 ## Swapping the model
 
 The model is a config value, not a hard dependency. On a smaller laptop:
@@ -81,7 +87,13 @@ Measured on an M2 MacBook Air with 8 GB RAM:
 | | |
 |---|---|
 | EXAONE 3.5 2.4B (4-bit, via Ollama) | 1.6 GB on disk |
-| PaddleOCR-VL-1.6 (`model.safetensors`) | 1.78 GB on disk |
+| EasyOCR Korean + English models | ~100 MB in `~/.EasyOCR` |
+| Peak resident memory, both loaded | 1.14 GB |
+| One page of OCR, models cached | 3.4 s |
+
+The first `./setup.sh` downloads the EasyOCR models; after that it runs offline.
+PaddleOCR-VL's 1.78 GB is **not** downloaded by default — it is selectable but
+does not currently load (see Licences and `docs/spike-findings.md`).
 
 Runtime measurements and the limits found while building are in
 [`docs/spike-findings.md`](docs/spike-findings.md), including what is not yet

@@ -14,6 +14,25 @@ from __future__ import annotations
 import re
 import unicodedata
 
+# Runs that join two separate things on a label: spaces, newlines, Korean's
+# enumeration middle dot, bullets. Deleting these lets 살리실산 + 메틸파라벤 fuse
+# into 살리실산메틸, so `bounded()` turns them into a boundary instead.
+_BOUNDARY = re.compile("[\\s\u00b7\u2022\u2027\u2219\u30fb]+")
+
+# Deleted outright: hyphenation and invisibles are *inside* one name when OCR
+# breaks it across a line.
+_JOINERS = re.compile(
+    "["
+    "\u00ad"
+    "\u200b-\u200f"
+    "\u2060\ufeff"
+    r"\-\u2010-\u2015\u2212"
+    "~"
+    "]+"
+)
+
+BOUNDARY = "\x00"
+
 _STRIP = re.compile(
     "["
     r"\s"                            # space, tab, newline, NBSP, ideographic space
@@ -28,4 +47,16 @@ _STRIP = re.compile(
 
 
 def normalize(text: str) -> str:
+    """Fuses everything. Required by Review Focus 3: OCR breaks a single name
+    across a line, and the pieces must rejoin."""
     return _STRIP.sub("", unicodedata.normalize("NFKC", text)).lower()
+
+
+def bounded(text: str) -> str:
+    """Like normalize, but keeps separators as an impassable boundary.
+
+    A hit here is genuinely one printed token; a hit that only appears in
+    `normalize` output crossed a boundary and is reported as approximate.
+    """
+    folded = _JOINERS.sub("", unicodedata.normalize("NFKC", text))
+    return _BOUNDARY.sub(BOUNDARY, folded).lower()

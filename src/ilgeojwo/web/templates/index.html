@@ -55,6 +55,8 @@
   </form>
 
   <div id="out"></div>
+  <h2 style="font-size:1rem;margin:28px 0 0">Saved, soonest first</h2>
+  <div id="history"></div>
 
   <p class="disclaimer">
     This is a reading aid, <strong>not medical advice</strong>. It does not know
@@ -65,22 +67,42 @@
 
 <script>
 const f = document.getElementById('f'), out = document.getElementById('out');
+const TOKEN = new URLSearchParams(location.search).get('t');
+const withToken = p => TOKEN ? `${p}${p.includes('?') ? '&' : '?'}t=${encodeURIComponent(TOKEN)}` : p;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const row = (k, v) => v ? `<div class="row"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>` : '';
 
+async function refreshHistory() {
+  try {
+    const rows = await (await fetch(withToken('/scans'))).json();
+    document.getElementById('history').innerHTML = rows.length === 0
+      ? '<p class="sub">Nothing saved yet.</p>'
+      : rows.map(r => {
+          const c = JSON.parse(r.card_json || '{}');
+          const when = c.deadline || c.deadline_text || (r.status === 'unreadable' ? 'unreadable' : 'no date');
+          const what = c.doc_type || c.product_name || r.lens;
+          return `<div class="row"><div class="k">${esc(when)}</div><div class="v">${esc(what)}</div></div>`;
+        }).join('');
+  } catch (_) { /* offline or unauthorised; the page still works */ }
+}
+refreshHistory();
+
 f.addEventListener('submit', async e => {
   e.preventDefault();
   out.innerHTML = '<div class="card">Reading…</div>';
-  const r = await fetch('/scan', { method:'POST', body:new FormData(f) });
+  const r = await fetch(withToken('/scan'), { method:'POST', body:new FormData(f) });
   if (!r.ok) {
     const err = await r.json().catch(() => ({detail: 'Something went wrong.'}));
     out.innerHTML = `<div class="card"><div class="warn"><pre>${esc(err.detail)}</pre></div></div>`;
     return;
   }
   const d = await r.json();
+  const warnHtml = ws => (ws || []).map(w => `<div class="warn">${w.approximate ? 'POSSIBLE \u2014 the OCR may have misread this. ' : ''}${esc(w.message)}<br><small>matched: ${esc((w.matched||[]).join(', '))}</small></div>`).join('');
   if (d.status === 'unreadable') {
-    out.innerHTML = `<div class="card"><div class="warn">${esc(d.message)}</div></div>`;
+    out.innerHTML = `<div class="card">${esc(d.message)}${warnHtml(d.warnings)}
+      ${(d.warnings||[]).length ? '<div class="disclaimer">Not medical advice. Confirm with your pharmacist.</div>' : ''}
+      <details><summary>Original Korean</summary><pre>${esc(d.ocr_text)}</pre></details></div>`;
     return;
   }
   const c = d.card;
@@ -108,11 +130,13 @@ f.addEventListener('submit', async e => {
     ${row('From', c.sender)}
     ${row('You must', c.action)}
     ${row('By', c.deadline || 'No date found')}
+    ${row('Deadline as printed', c.deadline_text)}
     ${row('Amount', c.amount)}
     ${row('Where', c.location)}
     ${d.status === 'partial' ? '<div class="warn">Only partly understood — read the Korean below.</div>' : ''}
     <details><summary>Original Korean</summary><pre>${esc(d.ocr_text)}</pre></details>
   </div>`;
+  refreshHistory();
 });
 </script>
 </body>

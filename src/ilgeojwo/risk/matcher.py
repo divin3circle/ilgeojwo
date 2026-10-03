@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .normalize import normalize
+from .normalize import BOUNDARY, bounded, normalize
 from .rules import Rule
 
 _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
@@ -34,7 +34,7 @@ _UNKNOWN_SEVERITY_SORTS_FIRST = -1
 # Joins list entries so that stripping whitespace cannot fuse two harmless
 # fragments into an ingredient name that was never there. No pattern can
 # contain it, and normalize() does not remove it.
-_SEPARATOR = "\x00"
+_SEPARATOR = BOUNDARY
 
 # Default floor only. Below this length a single changed character is usually too
 # weak a signal. But length alone is the wrong discriminator — 이산화황 sits one
@@ -55,25 +55,25 @@ class RiskWarning:
     approximate: bool = False  # matched one substitution away, not exactly
 
 
-def _haystack_from_list(values: object) -> str:
+def _joined(values: object) -> str:
     """Never raises. A crash in the safety module means zero warnings."""
     if values is None or isinstance(values, (str, bytes)):
-        return normalize(values) if isinstance(values, str) else ""
+        return values if isinstance(values, str) else ""
     try:
         items = list(values)  # type: ignore[call-overload]
     except TypeError:
         return ""
-    return normalize(_SEPARATOR.join(v for v in items if isinstance(v, str)))
+    return _SEPARATOR.join(v for v in items if isinstance(v, str))
 
 
 def _patterns(rule: Rule) -> tuple[str, ...]:
     return (*rule.match_ko, *rule.match_en)
 
 
-def _hits(rule: Rule, haystack: str) -> tuple[str, ...]:
+def _hits(rule: Rule, haystack: str, fold=normalize) -> tuple[str, ...]:
     if not haystack:
         return ()
-    return tuple(p for p in _patterns(rule) if normalize(p) in haystack)
+    return tuple(p for p in _patterns(rule) if fold(p) in haystack)
 
 
 def _one_substitution_away(needle: str, haystack: str) -> bool:
@@ -118,20 +118,30 @@ def _approximate_hits(rule: Rule, haystack: str) -> tuple[str, ...]:
 
 def match_risks(ingredients: object, raw_text: object,
                 rules: tuple[Rule, ...]) -> list[RiskWarning]:
-    from_ingredients = _haystack_from_list(ingredients)
-    from_ocr = normalize(raw_text) if isinstance(raw_text, str) else ""
+    joined = _joined(ingredients)
+    raw = raw_text if isinstance(raw_text, str) else ""
+    # Boundary-preserving haystacks: a hit here is one printed token.
+    bounded_ingredients, bounded_ocr = bounded(joined), bounded(raw)
+    # Fully fused: catches a name OCR split across a line, but a hit found only
+    # here crossed a separator, so it is reported as approximate.
+    fused_ingredients, fused_ocr = normalize(joined), normalize(raw)
 
     warnings: list[RiskWarning] = []
     for rule in rules:
-        in_ingredients = _hits(rule, from_ingredients)
-        in_ocr = _hits(rule, from_ocr)
+        in_ingredients = _hits(rule, bounded_ingredients, bounded)
+        in_ocr = _hits(rule, bounded_ocr, bounded)
         approximate = False
+
+        if not (in_ingredients or in_ocr):
+            in_ingredients = _hits(rule, fused_ingredients)
+            in_ocr = _hits(rule, fused_ocr)
+            approximate = bool(in_ingredients or in_ocr)
 
         if not (in_ingredients or in_ocr):
             # Only when nothing matched exactly, so a clean hit is never
             # downgraded to a guess.
-            in_ingredients = _approximate_hits(rule, from_ingredients)
-            in_ocr = _approximate_hits(rule, from_ocr)
+            in_ingredients = _approximate_hits(rule, bounded_ingredients)
+            in_ocr = _approximate_hits(rule, bounded_ocr)
             if not (in_ingredients or in_ocr):
                 continue
             approximate = True

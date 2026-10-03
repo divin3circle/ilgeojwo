@@ -33,15 +33,26 @@ def _parse_json(reply: str) -> dict | None:
     return value if isinstance(value, dict) else None
 
 
-def _to_card(data: dict) -> DocumentCard:
+def _to_card(data: dict, ocr_text: str = "") -> DocumentCard:
     deadline_text = (data.get("deadline_text") or "").strip()
+    issued_text = (data.get("issued_text") or "").strip()
+    deadline = parse_korean_date(deadline_text)
+
+    # The model is not trusted to have copied from the box. If the deadline it
+    # reports is not in the scanned text, it was composed, not read.
+    if deadline is not None and ocr_text and not _is_in(deadline_text, normalize(ocr_text)):
+        deadline, deadline_text = None, deadline_text
+
+    # If the two dates are identical the model almost certainly put the issue
+    # date in the deadline field, which Review Focus 1 forbids.
+    if deadline is not None and deadline == parse_korean_date(issued_text):
+        deadline = None
+
     return DocumentCard(
         doc_type=(data.get("doc_type") or "").strip() or ABSENT["doc_type"],
         sender=(data.get("sender") or "").strip() or ABSENT["sender"],
         action=(data.get("action") or "").strip() or ABSENT["action"],
-        # Parsed from deadline_text alone. issued_text is never consulted, so an
-        # issue date cannot leak into the deadline field (Review Focus 1).
-        deadline=parse_korean_date(deadline_text),
+        deadline=deadline,
         deadline_text=deadline_text,
         amount=(data.get("amount") or "").strip() or ABSENT["amount"],
         location=(data.get("location") or "").strip(),
@@ -51,7 +62,7 @@ def _to_card(data: dict) -> DocumentCard:
 def extract_document(ocr_text: str, llm: LlmClient) -> tuple[DocumentCard, str]:
     for prompt in (DOCUMENT, DOCUMENT_RETRY):
         if (data := _parse_json(llm.complete(prompt.format(text=ocr_text)))) is not None:
-            return _to_card(data), "ok"
+            return _to_card(data, ocr_text), "ok"
     return DocumentCard(), "partial"
 
 
@@ -82,6 +93,15 @@ class OllamaClient:
                 f"Could not reach the language model {self._model!r} at {self._url}.\n"
                 f"  Start the server with:   ollama serve\n"
                 f"  Install the model with:  ollama pull {self._model}"
+            ) from exc
+        except (TimeoutError, OSError, KeyError, json.JSONDecodeError) as exc:
+            # A read timeout is TimeoutError, not URLError. This is the failure a
+            # slower laptop meets first, so it must name the way out.
+            raise ModelUnavailable(
+                f"The language model {self._model!r} did not answer in time "
+                f"({type(exc).__name__}).\n"
+                f"  On a slower laptop, switch to the smaller model:\n"
+                f"    ILGEOJWO_LLM_MODEL=joonoh/HyperCLOVAX-SEED-Text-Instruct-1.5B make run"
             ) from exc
 
 
