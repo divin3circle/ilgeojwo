@@ -182,7 +182,7 @@ def test_a_very_long_document_is_shortened_before_the_model_sees_it():
     llm = FakeLlm(GOOD)
     extract_document(long_document, llm)
     # Measure the document, not the prompt template around it.
-    assert "rest of the document not shown" in llm.prompts[0]
+    assert "rest of the page not shown" in llm.prompts[0]
     assert len(llm.prompts[0]) < len(long_document) / 2
     assert MAX_EXTRACT_CHARS < len(long_document)
 
@@ -284,3 +284,20 @@ def test_no_action_needed_is_kept_because_it_is_a_real_answer():
                         "action": "No action needed"})
     card, _ = extract_document("...", FakeLlm(reply))
     assert card.action == "No action needed"
+
+
+def test_only_the_first_page_is_given_to_the_model():
+    """Measured: the same page read alone produced the right sender; read as page
+    one of eight it produced 'Issuer'. Korean official documents put the issuing
+    body and the deadline on page one — the rest is terms and conditions."""
+    from ilgeojwo.ocr.reader import PAGE_BREAK
+    llm = FakeLlm(ENGLISH_REPLY)
+    extract_document(f"출입국관리사무소 1쪽{PAGE_BREAK}약관 2쪽{PAGE_BREAK}약관 3쪽", llm)
+    assert "1쪽" in llm.prompts[0]
+    assert "2쪽" not in llm.prompts[0]
+
+
+def test_a_single_page_document_is_unaffected():
+    llm = FakeLlm(ENGLISH_REPLY)
+    extract_document("출입국관리사무소 납부기한 2026년 10월 5일", llm)
+    assert "납부기한" in llm.prompts[0]

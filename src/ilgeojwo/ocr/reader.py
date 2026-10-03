@@ -33,6 +33,10 @@ ENGINES = ("easyocr", "paddleocr-vl")
 # MAX_EXTRACT_CHARS in extract/extractor.py — the OCR text itself stays complete
 # so the risk matcher and the verbatim Korean see the whole document.
 MAX_PDF_PAGES: int | None = None
+
+# Form feed: the long-standing "new page" character. Lets the extractor take page
+# one without re-reading the PDF, and stays invisible in the Korean view.
+PAGE_BREAK = "\f"
 _PDF_RENDER_SCALE = 2.4  # roughly 170 dpi, enough for 9pt Korean
 
 # Deliberately very low. Confidence looked like the discriminator between real
@@ -148,7 +152,7 @@ def read_korean(path: Path, engine: OcrEngine, min_hangul: int,
                 parts.append(engine.read(page))
                 if on_page is not None:
                     on_page(number, len(pages), int((time.monotonic() - started) * 1000))
-            text = "\n".join(parts)
+            text = PAGE_BREAK.join(parts)
     else:
         text = engine.read(path)
     return OcrResult(text=text, readable=readable_enough(text, min_hangul))

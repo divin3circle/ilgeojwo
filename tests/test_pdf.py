@@ -87,3 +87,11 @@ def test_an_explicit_cap_is_still_honoured(tmp_path):
     engine = CountingEngine(["가나다라마바사"] * 9)
     read_korean(_pdf(tmp_path, 9), engine, min_hangul=3, max_pdf_pages=2)
     assert len(engine.calls) == 2
+
+
+def test_pages_are_separated_so_the_first_one_can_be_found_later(tmp_path):
+    from ilgeojwo.ocr.reader import PAGE_BREAK
+    engine = CountingEngine(["첫째 장입니다", "둘째 장입니다", "셋째 장입니다"])
+    result = read_korean(_pdf(tmp_path, 3), engine, min_hangul=3)
+    assert result.text.count(PAGE_BREAK) == 2
+    assert result.text.split(PAGE_BREAK)[0] == "첫째 장입니다"

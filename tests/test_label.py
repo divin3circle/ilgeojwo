@@ -301,3 +301,12 @@ def test_the_phrases_are_available_without_scanning_anything(tmp_path):
 def test_the_page_offers_to_speak_for_her(tmp_path):
     page = _client(tmp_path, "x").get("/").text
     assert "Show the pharmacist" in page
+
+
+def test_an_ingredient_on_a_later_page_is_still_screened():
+    """The model only sees page one. The matcher must still see every page, or a
+    multi-page insert would stop being screened."""
+    from ilgeojwo.ocr.reader import PAGE_BREAK
+    text = f"콜드에스 정{PAGE_BREAK}사용상의 주의사항{PAGE_BREAK}성분: 이부프로펜 200mg"
+    card, _ = extract_label(text, FakeLlm("{}"), RULES)
+    assert [w["rule_id"] for w in card.warnings] == ["nsaid"]

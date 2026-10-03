@@ -6,6 +6,7 @@ import json
 import re
 from typing import Protocol
 
+from ..ocr.reader import PAGE_BREAK
 from ..risk.matcher import match_risks
 from ..risk.normalize import normalize
 from ..risk.rules import Rule
@@ -29,9 +30,16 @@ MAX_EXTRACT_CHARS = 3500
 
 
 def _for_model(ocr_text: str) -> str:
-    if len(ocr_text) <= MAX_EXTRACT_CHARS:
-        return ocr_text
-    return ocr_text[:MAX_EXTRACT_CHARS] + "\n[... rest of the document not shown ...]"
+    """Page one, capped.
+
+    Measured: the same page read alone gave the right sender; read as page one of
+    eight it gave 'Issuer'. Truncating a concatenation mid-document was worse than
+    taking the page that actually carries the identifying information.
+    """
+    first = ocr_text.split(PAGE_BREAK)[0]
+    if len(first) <= MAX_EXTRACT_CHARS:
+        return first
+    return first[:MAX_EXTRACT_CHARS] + "\n[... rest of the page not shown ...]"
 
 
 def _still_korean(data: dict) -> bool:
