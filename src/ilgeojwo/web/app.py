@@ -20,6 +20,7 @@ from ..extract.extractor import (
 from ..ocr.reader import OcrEngine, OcrResult, read_korean, readable_enough
 from ..risk.matcher import match_risks
 from ..risk.rules import load_rules
+from ..speak import phrases_for
 from ..store.db import list_scans, save_scan
 
 UNREADABLE = "Couldn't read this — try more light, a flatter angle, or move closer."
@@ -33,6 +34,15 @@ IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp",
                "application/pdf"}
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def _counter_payload(rule_ids, rules=()) -> dict:
+    said = phrases_for(rule_ids, tuple(rules))
+    return {
+        "opening_ko": said.opening_ko, "opening_en": said.opening_en,
+        "condition_ko": said.condition_ko, "condition_en": said.condition_en,
+        "questions_ko": said.questions_ko, "questions_en": said.questions_en,
+    }
 
 
 def _warning_dicts(warnings) -> list[dict]:
@@ -60,6 +70,13 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
     def index(request: Request):
         _authorise(request)
         return _TEMPLATES.TemplateResponse(request, "index.html", {})
+
+    @app.get("/counter")
+    def counter(request: Request):
+        """What to show a Korean pharmacist. No model, no network, same words
+        every time — a chatbot that knows nothing about her cannot do this."""
+        _authorise(request)
+        return _counter_payload([], rules)
 
     @app.get("/scans")
     def scans(request: Request):
@@ -155,6 +172,7 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
                 "card": None,
                 "warnings": _warning_dicts(found),
                 "ocr_text": ocr.text,
+                "counter": _counter_payload([w.rule_id for w in found], rules),
             })
 
         log_stage("asking the language model")
@@ -185,7 +203,9 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient,
         card_json = card.model_dump_json()
         save_scan(config.db_path, lens=lens, image_path=str(saved),
                   ocr_text=ocr.text, card_json=card_json, status=status)
+        fired = [w.get("rule_id") for w in getattr(card, "warnings", [])]
         return JSONResponse({"status": status, "message": "", "warnings": [],
-                             "card": json.loads(card_json), "ocr_text": ocr.text})
+                             "card": json.loads(card_json), "ocr_text": ocr.text,
+                             "counter": _counter_payload(fired, rules)})
 
     return app

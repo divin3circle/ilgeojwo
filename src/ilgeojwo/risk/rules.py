@@ -31,6 +31,10 @@ class Rule:
     # the project's stated authority — decides per pattern.
     no_fuzzy: tuple[str, ...] = ()
     force_fuzzy: tuple[str, ...] = ()
+    # What to show a Korean pharmacist when this rule fires, with the English so
+    # she knows what she is holding up. See speak.py.
+    ask_ko: str = ""
+    ask_en: str = ""
 
 
 def _patterns(raw: dict, rule_id: str, field: str) -> tuple[str, ...]:
@@ -116,7 +120,15 @@ def load_rules(path: Path) -> tuple[Rule, ...]:
                 f"force_fuzzy"
             )
 
+        ask_ko = str(raw.get("ask_ko") or "").strip()
+        ask_en = str(raw.get("ask_en") or "").strip()
+        if ask_ko and not ask_en:
+            raise ValueError(
+                f"rule {rule_id!r}: has ask_ko but no ask_en — she must be able to "
+                f"read what she is showing someone"
+            )
+
         rules.append(Rule(rule_id, severity, match_ko, match_en, message, source,
-                          no_fuzzy, force_fuzzy))
+                          no_fuzzy, force_fuzzy, ask_ko, ask_en))
 
     return tuple(rules)

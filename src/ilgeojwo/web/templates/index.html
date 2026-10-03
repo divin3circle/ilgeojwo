@@ -130,6 +130,21 @@
     .shutter{width:68px; height:68px; border-radius:50%; background:#fff;
              border:4px solid rgba(255,255,255,.35)}
     .scancount{color:#fff; font-size:.9rem; text-align:center; padding:10px}
+    /* Held up to a stranger at arm's length, so everything is oversized. */
+    .counter{position:fixed; inset:0; background:var(--sheet); z-index:60;
+             display:none; flex-direction:column; overflow-y:auto;
+             padding:28px 22px calc(28px + env(safe-area-inset-bottom))}
+    .counter.on{display:flex}
+    .ko{font-size:1.5rem; line-height:1.45; font-weight:600; margin:0 0 6px}
+    .en{color:var(--muted); font-size:.92rem; margin:0 0 22px}
+    .counter .ask{border-top:1px solid var(--rule); padding-top:18px; margin-top:4px}
+    .counter .close{margin-top:auto; width:100%; padding:17px; border:0;
+                    border-radius:999px; background:var(--ink); color:var(--paper);
+                    font-size:1.05rem; font-weight:650; font-family:inherit;
+                    cursor:pointer}
+    .speak{display:block; width:100%; margin-top:10px; padding:15px; cursor:pointer;
+           border:1px solid var(--ink); border-radius:999px; background:none;
+           color:var(--ink); font-size:.98rem; font-weight:600; font-family:inherit}
     @media (prefers-reduced-motion:reduce){*{transition:none !important}}
   </style>
 </head>
@@ -173,7 +188,17 @@
     <div class="shots" id="shots"></div>
     <p class="chosen" id="chosen">Nothing chosen yet</p>
     <button class="go" type="submit" id="go" disabled>Read it</button>
+    <button class="speak" type="button" id="speak">Show the pharmacist</button>
   </form>
+
+  <div class="counter" id="counter">
+    <p class="ko" id="c-open"></p>
+    <p class="en" id="c-open-en"></p>
+    <p class="ko" id="c-cond"></p>
+    <p class="en" id="c-cond-en"></p>
+    <div id="c-asks"></div>
+    <button type="button" class="close" id="c-close">Done</button>
+  </div>
 
   <div class="scanner" id="scanner">
     <video id="video" playsinline muted></video>
@@ -276,6 +301,29 @@ if (canScan){
   });
 }
 
+/* Korean to hold up at a counter, with the English so she knows what it says.
+   Entirely from the rule file: no model, no network, same words every time. */
+const counter = document.getElementById('counter');
+let lastCounter = null;
+async function showCounter(){
+  let data = lastCounter;
+  if (!data){
+    try{ data = await (await fetch(withToken('/counter'))).json(); }
+    catch(_){ return; }
+  }
+  document.getElementById('c-open').textContent = data.opening_ko;
+  document.getElementById('c-open-en').textContent = data.opening_en;
+  document.getElementById('c-cond').textContent = data.condition_ko;
+  document.getElementById('c-cond-en').textContent = data.condition_en;
+  document.getElementById('c-asks').innerHTML = (data.questions_ko || [])
+    .map((ko, i) => `<div class="ask"><p class="ko">${esc(ko)}</p>
+      <p class="en">${esc((data.questions_en || [])[i] || '')}</p></div>`).join('');
+  counter.classList.add('on');
+}
+document.getElementById('speak').addEventListener('click', showCounter);
+document.getElementById('c-close').addEventListener('click',
+  () => counter.classList.remove('on'));
+
 const warnBlock = w => `<div class="w w-${esc(w.severity)}">
   ${w.approximate ? '<span class="maybe">Possible — the letters may have been misread</span>' : ''}
   ${esc(w.message)}
@@ -323,6 +371,7 @@ f.addEventListener('submit', async e => {
     go.disabled = false; return;
   }
   go.disabled = false;
+  lastCounter = d.counter || null;
 
   const korean = `<details><summary>What was read, in Korean</summary><pre>${esc(d.ocr_text)}</pre></details>`;
 
@@ -349,6 +398,7 @@ f.addEventListener('submit', async e => {
           ? line('Reported but not in the photo', c.ingredients_unverified.join(', ')) : ''}
       ${line('Dosage, as printed', c.dosage_ko)}
       ${line('Dosage, translated', c.dosage)}
+      ${c.warnings.length ? '<button class="speak" type="button" onclick="showCounter()">Show the pharmacist</button>' : ''}
       <p class="note">${c.warnings.length === 0 && c.ingredients_found
         ? 'Nothing matched is <strong>not the same as safe</strong> — letters can be misread, and the list only covers what is in it. Still show the box to the pharmacist.'
         : 'Not medical advice. A matched name does not prove the box contains it — Korean packaging names other drugs in its precautions. Trust the Korean dosage line over the translation, and confirm with your pharmacist.'}</p>

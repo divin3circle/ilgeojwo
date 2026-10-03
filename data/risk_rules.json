@@ -48,7 +48,9 @@
       "source": "GINA 2025 report, NSAID-exacerbated respiratory disease; Korean OTC analgesic product inserts",
       "force_fuzzy": [
         "부루펜"
-      ]
+      ],
+      "ask_ko": "이 약에 소염진통제(NSAID)가 들어 있습니까? 저는 피해야 합니다.",
+      "ask_en": "Does this contain an NSAID? I need to avoid them."
     },
     {
       "id": "opioid_antitussive",
@@ -69,7 +71,9 @@
       "source": "Dihydrocodeine appears in widely sold Korean OTC cough and cold products; standard opioid respiratory-depression caution in chronic respiratory disease",
       "force_fuzzy": [
         "코데인"
-      ]
+      ],
+      "ask_ko": "이 약에 코데인 같은 마약성 진해제가 들어 있습니까?",
+      "ask_en": "Does this contain an opioid cough suppressant such as codeine?"
     },
     {
       "id": "beta_blocker",
@@ -98,7 +102,9 @@
         "티몰롤",
         "나돌롤",
         "핀돌롤"
-      ]
+      ],
+      "ask_ko": "이 약에 베타차단제가 들어 있습니까? 안약도 포함해서요.",
+      "ask_en": "Does this contain a beta-blocker? Including eye drops."
     },
     {
       "id": "pyrazolone",
@@ -122,7 +128,9 @@
         "설피린",
         "게보린",
         "사리돈"
-      ]
+      ],
+      "ask_ko": "이 약에 피라졸론계 진통제가 들어 있습니까?",
+      "ask_en": "Does this contain a pyrazolone painkiller?"
     },
     {
       "id": "decongestant",
@@ -156,7 +164,9 @@
       "source": "Korean product inserts for OTC cold remedies and nasal sprays; standard sympathomimetic decongestant cautions",
       "force_fuzzy": [
         "판피린"
-      ]
+      ],
+      "ask_ko": "이 약에 혈관수축제가 들어 있습니까?",
+      "ask_en": "Does this contain a decongestant?"
     },
     {
       "id": "sulfite",
@@ -180,7 +190,9 @@
         "아황산염",
         "sulfite",
         "sulphite"
-      ]
+      ],
+      "ask_ko": "이 제품에 아황산염이 들어 있습니까?",
+      "ask_en": "Does this contain sulfites?"
     },
     {
       "id": "sedating_antihistamine",
@@ -208,8 +220,11 @@
         "carbinoxamine"
       ],
       "message_en": "A sedating antihistamine is named on this packaging. These cause drowsiness and can thicken airway secretions. Ask the pharmacist whether a non-drowsy alternative would suit you better.",
-      "source": "Korean OTC antihistamine product inserts; standard first-generation antihistamine cautions"
+      "source": "Korean OTC antihistamine product inserts; standard first-generation antihistamine cautions",
+      "ask_ko": "이 약에 졸음을 유발하는 항히스타민제가 들어 있습니까?",
+      "ask_en": "Does this contain a sedating antihistamine?"
     }
   ],
-  "_fuzzy_note": "no_fuzzy exempts a pattern from single-substitution matching; force_fuzzy opts a short one in. 이산화황 is exempt because 이산화티타늄/이산화탄소/이산화규소 are one substitution away and appear on a large share of Korean tablets, drinks and snacks; 'sulfite' because 'sulfate' is one away. 코데인 and 티몰롤 are forced in because they are short, high-severity, and fragile to the ㅔ/ㅐ confusion."
+  "_fuzzy_note": "no_fuzzy exempts a pattern from single-substitution matching; force_fuzzy opts a short one in. 이산화황 is exempt because 이산화티타늄/이산화탄소/이산화규소 are one substitution away and appear on a large share of Korean tablets, drinks and snacks; 'sulfite' because 'sulfate' is one away. 코데인 and 티몰롤 are forced in because they are short, high-severity, and fragile to the ㅔ/ㅐ confusion.",
+  "_speak_note": "ask_ko is shown to a Korean pharmacist; ask_en is what she reads before holding up the phone. Have a Korean speaker check the wording before relying on it."
 }

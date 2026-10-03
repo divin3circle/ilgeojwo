@@ -279,3 +279,25 @@ def test_truncation_never_weakens_the_risk_screening():
     buried = "가나다라마바사 " * 900 + " 성분 이부프로펜 200mg"
     card, _ = extract_label(buried, FakeLlm("{}"), RULES)
     assert [w["rule_id"] for w in card.warnings] == ["nsaid"]
+
+
+def test_a_flagged_scan_comes_back_with_what_to_show_the_pharmacist(tmp_path):
+    c = _client(tmp_path, "성분: 이부프로펜 200mg 슈도에페드린 30mg", COLD)
+    r = c.post("/scan", files={"image": _png()}, data={"lens": "label"})
+    counter = r.json()["counter"]
+    assert "소염진통제" in " ".join(counter["questions_ko"])
+    assert counter["condition_ko"]
+    assert len(counter["questions_ko"]) == len(counter["questions_en"])
+
+
+def test_the_phrases_are_available_without_scanning_anything(tmp_path):
+    """She may be at the counter before she has photographed anything."""
+    r = _client(tmp_path, "x").get("/counter")
+    assert r.status_code == 200
+    assert r.json()["opening_ko"]
+    assert r.json()["questions_ko"] == []
+
+
+def test_the_page_offers_to_speak_for_her(tmp_path):
+    page = _client(tmp_path, "x").get("/").text
+    assert "Show the pharmacist" in page
