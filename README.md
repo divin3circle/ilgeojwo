@@ -18,9 +18,32 @@ the machine. It works with the WiFi switched off.
 
 ## Install
 
+**macOS / Linux**
+
 ```bash
-./setup.sh      # dependencies, language model, OCR weights, tests
+./setup.sh      # dependencies, language model, OCR models, tests
 make run        # serves on your network and prints a QR code
+```
+
+**Windows** (PowerShell, in the repo folder)
+
+```powershell
+.\setup.ps1
+uv run python -m ilgeojwo.serve
+```
+
+Setup picks the language model your machine can hold — **EXAONE 3.5 7.8B** on 12 GB
+or more, **2.4B** below that — and records the choice in `.ilgeojwo.env` so the
+server loads the model that was actually downloaded. The 7.8B mistranslates drug
+names noticeably less, which matters here (see Licences and the limitations below).
+
+**Graphics card:** OCR uses CUDA when a CUDA build of PyTorch is present, and the
+CPU otherwise — a few seconds per photo either way. `uv sync` installs the CPU
+build, so if you want the GPU:
+
+```powershell
+uv pip install --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu124
+.\setup.ps1
 ```
 
 Scan the QR code with your phone — on the same WiFi — and you are in. Photograph
@@ -40,8 +63,10 @@ The model is a config value, not a hard dependency. On a smaller laptop:
 ILGEOJWO_LLM_MODEL=joonoh/HyperCLOVAX-SEED-Text-Instruct-1.5B make run
 ```
 
-That is the whole change. You cannot do that when the model is someone else's
-HTTP endpoint.
+That is the whole change, and it is not hypothetical: this was written on an 8 GB
+M2 running the 2.4B, and it runs on a 16 GB Windows laptop with a graphics card on
+the 7.8B. Same code, same commit, one line of configuration. You cannot do that
+when the model is someone else's HTTP endpoint.
 
 ## How it decides what to warn you about
 

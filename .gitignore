@@ -16,3 +16,6 @@ tests/golden/fixtures/*
 # differently-named file cannot be committed by accident.
 tests/golden/expected/*
 !tests/golden/expected/*.synthetic.json
+
+# Machine-specific choices written by setup; never shared.
+.ilgeojwo.env

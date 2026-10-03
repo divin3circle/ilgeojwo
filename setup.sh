@@ -5,7 +5,18 @@ set -euo pipefail
 command -v uv >/dev/null || { echo "Install uv: https://docs.astral.sh/uv/"; exit 1; }
 command -v ollama >/dev/null || { echo "Install Ollama: https://ollama.com/download"; exit 1; }
 
-MODEL="${ILGEOJWO_LLM_MODEL:-exaone3.5:2.4b}"
+# Pick the model this machine can hold. The 7.8B mistranslates drug names far
+# less than the 2.4B, and a 12 GB+ laptop runs it comfortably.
+RAM_GB=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 ))
+[ "$RAM_GB" -eq 0 ] && RAM_GB=$(( $(getconf _PHYS_PAGES 2>/dev/null || echo 0) * $(getconf PAGE_SIZE 2>/dev/null || echo 4096) / 1073741824 ))
+if [ -n "${ILGEOJWO_LLM_MODEL:-}" ]; then
+  MODEL="$ILGEOJWO_LLM_MODEL"
+elif [ "$RAM_GB" -ge 12 ]; then
+  MODEL="exaone3.5:7.8b"
+else
+  MODEL="exaone3.5:2.4b"
+fi
+echo "==> ${RAM_GB} GB RAM detected -> language model $MODEL"
 
 echo "==> Python dependencies"
 uv sync
@@ -22,6 +33,10 @@ curl -sf http://localhost:11434/api/tags >/dev/null || {
   exit 1
 }
 ollama pull "$MODEL" || { echo "Could not pull $MODEL. Check your connection, then re-run."; exit 1; }
+
+echo "==> Recording these choices in .ilgeojwo.env"
+GPU=$(uv run python -c "import torch; print('1' if torch.cuda.is_available() else '0')" 2>/dev/null || echo 0)
+printf 'ILGEOJWO_LLM_MODEL=%s\nILGEOJWO_OCR_GPU=%s\n' "$MODEL" "$GPU" > .ilgeojwo.env
 
 echo "==> OCR weights for the CONFIGURED engine (first run downloads ~100 MB)"
 uv run python -c "

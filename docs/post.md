@@ -362,7 +362,19 @@ the passport number covered.
 In a pharmacy. In a government office. In a basement with no signal. The models
 are on the disk.
 
-### 4. When one model turned out to be broken, I swapped it in one line
+### 4. Two different machines, two different models, one commit
+
+I wrote this on an 8 GB M2 MacBook Air with no graphics card, running EXAONE 3.5 at
+**2.4B**. My sister's laptop is Windows, 16 GB, with a GPU — so her install runs
+the **7.8B**, which mistranslates drug names noticeably less. Setup detects the RAM,
+picks the model, and records the choice so the server cannot load a different one
+than it downloaded.
+
+Same commit. One line of configuration. The model that suits her hardware is not
+the model that suits mine, and with open weights that is a setting rather than a
+rewrite — or a different price tier.
+
+### 5. When one model turned out to be broken, I swapped it in one line
 
 I did not choose EasyOCR first. I chose **PaddleOCR-VL-1.6** — 0.9B parameters,
 Apache 2.0, state of the art on OmniDocBench, documented as robust to exactly the
@@ -391,7 +403,7 @@ extraction quality is lower than I planned. But "lower than planned" beats
 "blocked indefinitely," and I only had that choice because every piece was
 inspectable.
 
-### 5. It costs nothing to run, forever
+### 6. It costs nothing to run, forever
 
 She is a student. There is no bill, no quota, no trial expiry, and no company
 that can deprecate the thing she depends on to read her visa letters.
