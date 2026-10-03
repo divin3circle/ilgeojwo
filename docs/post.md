@@ -147,7 +147,69 @@ stop reading warnings. Every message now says a name **is named on this
 packaging**, shows her what matched, and tells her a match is not proof of
 containment.
 
-Seven fixes, each with a test that failed first. The suite went from 73 to 265.
+Seven fixes, each with a test that failed first. The suite went from 73 to 279.
+
+### Then I measured the OCR, and the finding we both dismissed was the dangerous one
+
+The reviewer listed one more thing, graded **Minor**: there is no fuzzy matching,
+so if OCR misreads a syllable the warning does not fire. I read that, agreed it
+was a reasonable v1 boundary, wrote it in the README as a known limitation, and
+moved on. So did the reviewer. Two careful readers, same conclusion.
+
+Then the OCR finished downloading and I ran it on a rendered Korean document whose
+exact contents I knew.
+
+```
+rendered:  체류기간 연장허가 … 신청서를 … 납부금액: 60,000원
+easyocr:   체류기간 연장히가 … 신청서클 … 남부금액: 60,00o원
+```
+
+허→히. 를→클. 납→남. Three substituted syllables, on a clean 34-point render with
+no glare, no skew and no curvature. Not a photograph. The easiest input this tool
+will ever see.
+
+So I pointed the matcher at the cold-medicine fixture and printed what it actually
+found:
+
+```
+rendered:  이부프로펜 200mg      슈도에페드린염산염 30mg      클로르페니라민말레산염 2mg
+easyocr:   이부프로편 2OOmg      수도에페드린염산염 3Omg      킬로르페니라민말레산염 2mg
+                  ^ 펜→편            ^ 슈→수                      ^ 클→킬
+
+[high  ] nsaid                   APPROXIMATE  matched=('이부프로펜',)
+[medium] decongestant            exact        matched=('에페드린',)
+[low   ] sedating_antihistamine  APPROXIMATE  matched=('클로르페니라민',)
+```
+
+Two of the three warnings — **including the high-severity NSAID** — are found only
+by a tier that did not exist. With exact matching alone, my sister photographs a
+Korean cold medicine box containing ibuprofen, and the tool shows her a clean card.
+
+That is the whole failure this project exists to prevent, and it was sitting behind
+a limitation two people had independently signed off as acceptable.
+
+The tier now runs only when nothing matches exactly, so a clean hit is never
+downgraded to a guess. It requires a name of at least four characters, because one
+changed character in a three-syllable name is too weak a signal to act on —
+`코데인` stays exact-only while `인산코데인` and `디히드로코데인` carry it. And its
+warnings say `POSSIBLE — the OCR may have misread this`, because a guess should
+look like a guess.
+
+It also introduced a false positive immediately. Ingredient-list entries are joined
+with a null byte so that stripping whitespace cannot fuse two fragments into a drug
+name — and the fuzzy tier cheerfully treated that null byte as the one substituted
+character, matching `["에", "페드린"]` against `에페드린`. The test I had written
+for the original fusion bug caught it on the first run.
+
+There is a smaller lesson hiding in that output too. `decongestant` matched
+*exactly*, despite `슈도에페드린염산염` being misread, because the rule list carries
+the bare `에페드린` alongside the salt form — and the short form survived inside the
+mangled long one. Listing both the drug and its salts buys redundancy for free.
+
+**The review caught what I had assumed. The measurement caught what the reviewer
+and I had both assumed.** Neither was sufficient alone, and the second one only
+cost me running the thing and reading the output.
+
 
 ## Why Open Innovation Matters
 
@@ -213,9 +275,10 @@ that can deprecate the thing she depends on to read her visa letters.
 
 ## What does not work
 
-- **No fuzzy matching.** If OCR reads `이부프로펜` as `이부프로팬`, the warning
-  does not fire. A clean result means "nothing on my list was found," never "this
-  is safe," and the README says so.
+- **Fuzzy matching stops at one character.** Two substitutions in the same name,
+  or a misread three-syllable name, still slip through. A clean result means
+  "nothing on my list was found," never "this is safe" — and the card says that
+  out loud rather than leaving her to infer it.
 - **The rule file is provisional.** The groups are a conservative reading of
   "pulmonary condition," marked `PROVISIONAL` in the JSON. They include opioids
   and sulfites because a code reviewer told me to, not because a doctor did.
@@ -224,5 +287,7 @@ that can deprecate the thing she depends on to read her visa letters.
   person. It is why this is not a product. For anyone wanting to build on this
   commercially, HyperCLOVA X SEED is the permissive alternative, and swapping to
   it is one environment variable.
-- **The OCR has never seen a real phone photo.** Only clean renders. That gap
-  closes the first time she points her camera at something.
+- **The OCR has never seen a real phone photo.** Only clean renders — which
+  already produced three substituted syllables. Real photographs will be worse,
+  and I do not yet know by how much. That gap closes the first time she points her
+  camera at something.
