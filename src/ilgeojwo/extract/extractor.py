@@ -7,6 +7,7 @@ import re
 from typing import Protocol
 
 from ..risk.matcher import match_risks
+from ..risk.normalize import normalize
 from ..risk.rules import Rule
 from .dates import parse_korean_date
 from .prompts import DOCUMENT, DOCUMENT_RETRY, LABEL, LABEL_RETRY
@@ -84,22 +85,50 @@ class OllamaClient:
             ) from exc
 
 
+def _strings(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(v).strip() for v in value if str(v).strip()]
+
+
+def _is_in(claim: str, haystack: str) -> bool:
+    """Whitespace-insensitive containment, using the matcher's normalisation."""
+    needle = normalize(claim)
+    return bool(needle) and needle in haystack
+
+
 def _to_label_card(data: dict, ocr_text: str, rules: tuple[Rule, ...]) -> LabelCard:
-    ingredients = [str(i).strip() for i in (data.get("ingredients") or []) if str(i).strip()]
+    scanned = normalize(ocr_text)
+    claimed_ko = _strings(data.get("ingredients_ko"))
+    english = _strings(data.get("ingredients"))
+
+    # Grounding: only Korean the scan actually contains may be shown to her as an
+    # ingredient. Everything the model said is still screened for risk, because
+    # over-warning is survivable and under-warning is not.
+    grounded = [name for name in claimed_ko if _is_in(name, scanned)]
+    unverified = [name for name in claimed_ko if not _is_in(name, scanned)]
+
     # The raw OCR text is passed in regardless of what the model returned, so a
     # model that missed an ingredient cannot suppress its warning (spec §5.2).
-    warnings = match_risks(ingredients, ocr_text, rules)
+    warnings = match_risks(claimed_ko + english, ocr_text, rules)
+
+    dosage_ko = (data.get("dosage_ko") or "").strip()
     return LabelCard(
         product_name=(data.get("product_name") or "").strip() or LABEL_ABSENT["product_name"],
         kind=(data.get("kind") or "").strip() or LABEL_ABSENT["kind"],
-        ingredients=ingredients,
+        ingredients_ko=grounded,
+        ingredients_unverified=unverified,
+        ingredients=english,
         dosage=(data.get("dosage") or "").strip() or LABEL_ABSENT["dosage"],
-        dosage_ko=(data.get("dosage_ko") or "").strip(),
+        # The page tells her to trust this line, so it must be a line that is
+        # actually on the box.
+        dosage_ko=dosage_ko if _is_in(dosage_ko, scanned) else "",
         warnings=[{"rule_id": w.rule_id, "severity": w.severity,
                    "message": w.message, "matched": list(w.matched),
                    "found_in": list(w.found_in),
                    "approximate": w.approximate} for w in warnings],
-        ingredients_found=bool(ingredients),
+        # From evidence in the image, never from the model having said something.
+        ingredients_found=bool(grounded),
     )
 
 

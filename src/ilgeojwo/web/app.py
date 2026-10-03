@@ -15,11 +15,16 @@ from ..config import Config
 from ..extract.extractor import (
     LlmClient, ModelUnavailable, extract_document, extract_label,
 )
+from ..risk.matcher import match_risks
 from ..ocr.reader import OcrEngine, read_korean
 from ..risk.rules import load_rules
 from ..store.db import list_scans, save_scan
 
 UNREADABLE = "Couldn't read this — try more light, a flatter angle, or move closer."
+PARTIAL_LABEL = (
+    "Only a little text came off this photo, so the card is incomplete — but what "
+    "was read is flagged below. Take another photo of the ingredients panel too."
+)
 LENSES = {"document", "label"}
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
@@ -51,11 +56,23 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient) -> FastAPI
 
         ocr = read_korean(saved, ocr_engine, config.min_hangul)
         if not ocr.readable:
-            # The model is never asked to interpret noise.
+            # The model is never asked to interpret noise — but the matcher is
+            # pure logic and costs nothing, so a label scan is still screened.
+            # Otherwise a blister foil reading exactly "이부프로펜 200mg" (five
+            # syllables, below the gate) would be silently cleared.
+            found = match_risks([], ocr.text, rules) if lens == "label" else []
             save_scan(config.db_path, lens=lens, image_path=str(saved),
                       ocr_text=ocr.text, card_json="{}", status="unreadable")
-            return JSONResponse({"status": "unreadable", "message": UNREADABLE,
-                                 "card": None, "ocr_text": ocr.text})
+            return JSONResponse({
+                "status": "unreadable",
+                "message": PARTIAL_LABEL if found else UNREADABLE,
+                "card": None,
+                "warnings": [{"rule_id": w.rule_id, "severity": w.severity,
+                              "message": w.message, "matched": list(w.matched),
+                              "found_in": list(w.found_in),
+                              "approximate": w.approximate} for w in found],
+                "ocr_text": ocr.text,
+            })
 
         try:
             if lens == "label":
@@ -67,7 +84,7 @@ def create_app(config: Config, ocr_engine: OcrEngine, llm: LlmClient) -> FastAPI
         card_json = card.model_dump_json()
         save_scan(config.db_path, lens=lens, image_path=str(saved),
                   ocr_text=ocr.text, card_json=card_json, status=status)
-        return JSONResponse({"status": status, "message": "",
+        return JSONResponse({"status": status, "message": "", "warnings": [],
                              "card": json.loads(card_json), "ocr_text": ocr.text})
 
     return app

@@ -32,7 +32,9 @@ Transcribe and list only what is literally printed. Do not interpret.
 Return a single JSON object with exactly these keys:
   product_name - the product name in English, or ""
   kind         - "medicine" or "food", or ""
-  ingredients  - a list of active ingredient names exactly as printed, or []
+  ingredients_ko - a list of active ingredient names EXACTLY as printed in
+                   Korean, copied character for character, or []
+  ingredients  - the same list translated to English, same order, or []
   dosage       - the dosage instructions in English, or ""
   dosage_ko    - the dosage line EXACTLY as written in Korean, copied
                  character for character, or ""
@@ -46,7 +48,7 @@ Korean text:
 LABEL_RETRY = """Your previous reply was not valid JSON.
 
 Reply with ONE valid JSON object and nothing else. No prose, no markdown fence.
-Keys: product_name, kind, ingredients, dosage, dosage_ko.
+Keys: product_name, kind, ingredients_ko, ingredients, dosage, dosage_ko.
 
 Korean text:
 {text}"""

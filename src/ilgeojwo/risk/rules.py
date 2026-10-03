@@ -25,6 +25,12 @@ class Rule:
     match_en: tuple[str, ...]
     message_en: str
     source: str
+    # Patterns exempted from the single-substitution tier, and short patterns
+    # opted into it. A global length floor cannot tell 이산화황 (noisy compound
+    # family) from 코데인 (high severity, one-glyph-fragile), so the rule file —
+    # the project's stated authority — decides per pattern.
+    no_fuzzy: tuple[str, ...] = ()
+    force_fuzzy: tuple[str, ...] = ()
 
 
 def _patterns(raw: dict, rule_id: str, field: str) -> tuple[str, ...]:
@@ -94,6 +100,23 @@ def load_rules(path: Path) -> tuple[Rule, ...]:
         if not (match_ko or match_en):
             raise ValueError(f"rule {rule_id!r}: has no match pattern")
 
-        rules.append(Rule(rule_id, severity, match_ko, match_en, message, source))
+        known = set(match_ko) | set(match_en)
+        no_fuzzy = _patterns(raw, rule_id, "no_fuzzy")
+        force_fuzzy = _patterns(raw, rule_id, "force_fuzzy")
+        for field, entries in (("no_fuzzy", no_fuzzy), ("force_fuzzy", force_fuzzy)):
+            for entry in entries:
+                if entry not in known:
+                    raise ValueError(
+                        f"rule {rule_id!r}: {field!r} names {entry!r}, which is not one "
+                        f"of its patterns — a typo here silently changes protection"
+                    )
+        if overlap := set(no_fuzzy) & set(force_fuzzy):
+            raise ValueError(
+                f"rule {rule_id!r}: {sorted(overlap)} appear in both no_fuzzy and "
+                f"force_fuzzy"
+            )
+
+        rules.append(Rule(rule_id, severity, match_ko, match_en, message, source,
+                          no_fuzzy, force_fuzzy))
 
     return tuple(rules)

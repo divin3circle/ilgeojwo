@@ -143,3 +143,34 @@ def test_a_non_string_id_is_rejected(tmp_path):
     bad = {**OK_RULE, "id": 7}
     with pytest.raises(ValueError, match="id"):
         load_rules(_write(tmp_path, [bad]))
+
+
+def test_a_no_fuzzy_entry_that_is_not_one_of_the_rule_patterns_is_rejected(tmp_path):
+    """A typo here silently removes protection, so it must fail loudly."""
+    bad = {**OK_RULE, "no_fuzzy": ["존재하지않는패턴"]}
+    with pytest.raises(ValueError, match="no_fuzzy"):
+        load_rules(_write(tmp_path, [bad]))
+
+
+def test_a_force_fuzzy_entry_that_is_not_one_of_the_rule_patterns_is_rejected(tmp_path):
+    bad = {**OK_RULE, "force_fuzzy": ["존재하지않는패턴"]}
+    with pytest.raises(ValueError, match="force_fuzzy"):
+        load_rules(_write(tmp_path, [bad]))
+
+
+def test_a_pattern_cannot_be_both_forced_and_forbidden(tmp_path):
+    bad = {**OK_RULE, "no_fuzzy": ["이부프로펜"], "force_fuzzy": ["이부프로펜"]}
+    with pytest.raises(ValueError, match="both"):
+        load_rules(_write(tmp_path, [bad]))
+
+
+def test_the_shipped_file_exempts_the_noisy_compound_families():
+    by_id = {r.id: r for r in load_rules(SHIPPED)}
+    assert "이산화황" in by_id["sulfite"].no_fuzzy
+    assert "sulfite" in by_id["sulfite"].no_fuzzy
+
+
+def test_the_shipped_file_forces_fuzzy_on_the_short_high_stakes_names():
+    by_id = {r.id: r for r in load_rules(SHIPPED)}
+    assert "코데인" in by_id["opioid_antitussive"].force_fuzzy
+    assert "티몰롤" in by_id["beta_blocker"].force_fuzzy

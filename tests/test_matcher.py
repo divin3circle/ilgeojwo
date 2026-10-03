@@ -221,10 +221,14 @@ def test_an_exact_hit_wins_over_an_approximate_one_for_the_same_rule():
     assert next(w for w in ws if w.rule_id == "nsaid").approximate is False
 
 
-def test_short_names_are_exact_only_so_the_tool_does_not_cry_wolf():
-    """One changed character in a three-syllable name is too weak a signal to
-    act on. Longer spellings of the same drug still carry it."""
-    assert match_risks([], "성분: 코데임", RULES) == []
+def test_short_names_are_exact_only_unless_the_rule_file_opts_them_in():
+    """The default floor keeps a one-character change in a very short pattern
+    from firing on ordinary text. 판콜 (two characters) is left on the default;
+    코데인 is opted in by the rule file because it is high-severity and fragile
+    to the ㅔ/ㅐ misread. An earlier version of this test asserted that 코데임
+    produced nothing — which documented the gap rather than a decision."""
+    assert "decongestant" not in ids(match_risks([], "성분: 판클", RULES))
+    assert "opioid_antitussive" in ids(match_risks([], "성분: 코데임", RULES))
     assert "opioid_antitussive" in ids(match_risks([], "성분: 인산코데임", RULES))
 
 
@@ -234,3 +238,39 @@ def test_fuzzy_matching_does_not_drag_in_a_safe_box():
 
 def test_fuzzy_matching_does_not_drag_in_vitamins():
     assert match_risks(["비타민C"], "비타민C 1000mg 아스코르브산", RULES) == []
+
+
+@pytest.mark.parametrize("label", [
+    "첨가제: 히프로멜로스, 이산화티타늄, 탈크",
+    "원재료명: 정제수, 이산화탄소",
+    "비타민C 1000mg 첨가제: 이산화규소, 스테아르산마그네슘",
+    "원재료명: 소맥분, 팜유, 정제염, 이산화규소",
+    "성분: 황산마그네슘 500mg",
+    "ingredients: magnesium sulfate, cellulose",
+])
+def test_common_excipients_do_not_fire_a_sulfite_warning(label):
+    """이산화X is a productive Korean compound family — titanium dioxide, silicon
+    dioxide and carbon dioxide are on a large fraction of Korean tablets, drinks
+    and snacks, and all sit one substitution from 이산화황. 'sulfate' is likewise
+    one substitution from 'sulfite'. Firing on ordinary labels is exactly the
+    cry-wolf failure the length floor was supposed to prevent."""
+    assert "sulfite" not in ids(match_risks([], label, RULES))
+
+
+def test_a_real_sulfite_still_fires():
+    assert "sulfite" in ids(match_risks([], "원재료명: 건포도, 아황산염", RULES))
+    assert "sulfite" in ids(match_risks([], "이산화황 함유 와인", RULES))
+
+
+@pytest.mark.parametrize("misread,expected", [
+    ("코대인인산염", "opioid_antitussive"),   # ㅔ/ㅐ, the commonest Korean confusion
+    ("티물롤", "beta_blocker"),               # ophthalmic timolol
+    ("부르펜시럽", "nsaid"),
+    ("게부린정", "pyrazolone"),
+    ("사리논", "pyrazolone"),
+])
+def test_short_high_stakes_names_are_fuzzy_when_the_rule_file_says_so(misread, expected):
+    """The length floor excluded 코데인, 티몰롤 and the brand names added to close
+    the front-panel-photo hole — the names where one misread syllable costs most.
+    A global integer cannot tell those from 이산화황, so the rule file decides."""
+    assert expected in ids(match_risks([], f"성분: {misread}", RULES))

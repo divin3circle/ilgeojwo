@@ -23,14 +23,18 @@ class FakeLlm:
 
 
 COLD = json.dumps({"product_name": "Tylenol Cold S", "kind": "medicine",
-                   "ingredients": ["이부프로펜 200mg", "슈도에페드린 30mg"],
-                   "dosage": "1 tablet 3 times a day after meals"})
+                   "ingredients_ko": ["이부프로펜", "슈도에페드린"],
+                   "ingredients": ["ibuprofen", "pseudoephedrine"],
+                   "dosage": "1 tablet 3 times a day after meals",
+                   "dosage_ko": "1일 3회 1정 식후 복용"})
 
 
 def test_a_cold_medicine_box_produces_ordered_warnings():
-    card, status = extract_label("성분: 이부프로펜 슈도에페드린", FakeLlm(COLD), RULES)
+    card, status = extract_label(
+        "성분: 이부프로펜 슈도에페드린 용법 1일 3회 1정 식후 복용", FakeLlm(COLD), RULES)
     assert status == "ok"
     assert card.ingredients_found is True
+    assert card.ingredients_ko == ["이부프로펜", "슈도에페드린"]
     assert [w["rule_id"] for w in card.warnings] == ["nsaid", "decongestant"]
     assert card.dosage == "1 tablet 3 times a day after meals"
 
@@ -68,7 +72,8 @@ def test_the_label_prompt_never_asks_the_model_whether_it_is_safe():
 
 def test_a_safe_product_has_no_warnings_but_still_lists_ingredients():
     safe = json.dumps({"product_name": "Tylenol", "kind": "medicine",
-                       "ingredients": ["아세트아미노펜 500mg"], "dosage": "1 tablet"})
+                       "ingredients_ko": ["아세트아미노펜"],
+                       "ingredients": ["acetaminophen"], "dosage": "1 tablet"})
     card, _ = extract_label("아세트아미노펜 500mg", FakeLlm(safe), RULES)
     assert card.warnings == []
     assert card.ingredients_found is True
@@ -160,3 +165,88 @@ def test_the_label_prompt_asks_for_the_dosage_verbatim_in_korean():
 def test_the_page_shows_the_korean_dosage_as_the_checkable_one(tmp_path):
     page = _client(tmp_path, "x").get("/").text
     assert "dosage_ko" in page
+
+
+def test_ingredients_are_carried_in_korean_and_grounded_in_the_scanned_text():
+    reply = json.dumps({"ingredients_ko": ["이부프로편", "수도에페드린염산염"],
+                        "ingredients": ["ibuprofen", "cetirizine hydrochloride"]})
+    card, _ = extract_label("성분 이부프로편 2OOmg 수도에페드린염산염 3Omg",
+                            FakeLlm(reply), RULES)
+    assert card.ingredients_ko == ["이부프로편", "수도에페드린염산염"]
+    assert card.ingredients_found is True
+
+
+def test_a_korean_ingredient_the_scan_does_not_contain_is_not_shown_as_fact():
+    """MEASURED on the real stack: EXAONE turned 슈도에페드린 (pseudoephedrine)
+    into 'cetirizine hydrochloride' — a different drug in a different class — and
+    invented 'ketofenilamine maleate'. Model output absent from the scanned text
+    must not appear on her card as an ingredient."""
+    reply = json.dumps({"ingredients_ko": ["이부프로펜", "세티리진염산염"],
+                        "ingredients": ["ibuprofen", "cetirizine hydrochloride"]})
+    card, _ = extract_label("성분 이부프로펜 200mg", FakeLlm(reply), RULES)
+    assert card.ingredients_ko == ["이부프로펜"]
+    assert card.ingredients_unverified == ["세티리진염산염"]
+
+
+def test_invented_ingredients_cannot_suppress_the_zero_ingredient_notice():
+    """Spec §3.2 was bypassed by a model that invents three plausible
+    excipients: ingredients_found came from model truthiness, not evidence."""
+    reply = json.dumps({"ingredients_ko": ["아스코르브산", "스테아르산마그네슘", "셀룰로스"],
+                        "ingredients": ["ascorbic acid", "magnesium stearate"]})
+    card, _ = extract_label("흐릿 글자 번짐 반사 광택 포장 알수없음 내용 불명 사진",
+                            FakeLlm(reply), RULES)
+    assert card.ingredients_found is False
+    assert card.ingredients_ko == []
+
+
+def test_ungrounded_ingredients_are_still_screened_for_risk():
+    """Screen generously, display conservatively: a name we will not show her is
+    still checked, because over-warning is survivable and under-warning is not."""
+    reply = json.dumps({"ingredients_ko": ["이부프로펜"], "ingredients": ["ibuprofen"]})
+    card, _ = extract_label("흐릿한 글자 포장 반사 광택 알수없음 내용 불명 사진",
+                            FakeLlm(reply), RULES)
+    assert [w["rule_id"] for w in card.warnings] == ["nsaid"]
+    assert card.ingredients_found is False
+
+
+def test_a_dosage_the_scan_does_not_contain_is_not_presented_as_verbatim():
+    """The page tells her to trust the Korean dosage line. It must therefore be
+    a line that is actually on the box."""
+    reply = json.dumps({"dosage": "Take 1 tablet", "dosage_ko": "1일 1회 1정 복용"})
+    card, _ = extract_label("성분 이부프로펜 200mg 용법 1일 3회", FakeLlm(reply), RULES)
+    assert card.dosage_ko == ""
+
+
+def test_the_label_prompt_asks_for_ingredients_verbatim_in_korean():
+    llm = FakeLlm(COLD)
+    extract_label("...", llm, RULES)
+    assert "ingredients_ko" in llm.prompts[0]
+
+
+def test_a_short_label_is_still_screened_even_when_judged_unreadable(tmp_path):
+    """A blister foil reading exactly '이부프로펜 200mg' is 5 Hangul syllables,
+    below min_hangul=10, so the gate calls the scan unreadable. The OCR read it
+    perfectly. The NSAID must still be flagged — otherwise the readability gate
+    is a silent false negative upstream of the matcher, which is the exact
+    failure spec §5.2 exists to prevent."""
+    c = _client(tmp_path, "이부프로펜 200mg")
+    r = c.post("/scan", files={"image": _png()}, data={"lens": "label"})
+    body = r.json()
+    assert body["status"] == "unreadable"
+    assert [w["rule_id"] for w in body["warnings"]] == ["nsaid"]
+    assert "more light" not in body["message"]
+
+
+def test_an_unreadable_label_with_nothing_found_says_so_plainly(tmp_path):
+    c = _client(tmp_path, "")
+    r = c.post("/scan", files={"image": _png()}, data={"lens": "label"})
+    body = r.json()
+    assert body["status"] == "unreadable"
+    assert body["warnings"] == []
+    assert "more light" in body["message"]
+
+
+def test_an_unreadable_document_is_not_screened_for_medicine_risk(tmp_path):
+    c = _client(tmp_path, "이부프로펜")
+    r = c.post("/scan", files={"image": _png()}, data={"lens": "document"})
+    assert r.json()["warnings"] == []

@@ -37,6 +37,13 @@ LABEL_ABSENT = {
 class LabelCard(BaseModel):
     product_name: str = LABEL_ABSENT["product_name"]
     kind: str = LABEL_ABSENT["kind"]
+    # Korean as printed, kept only when it is actually in the scanned text.
+    # The model measurably renamed pseudoephedrine to "cetirizine", so its
+    # output is not evidence about the box (spec §5.1 applies to reading too).
+    ingredients_ko: list[str] = []
+    # What the model claimed but the scan does not support. Shown as doubtful,
+    # never as an ingredient, and still screened for risk.
+    ingredients_unverified: list[str] = []
     ingredients: list[str] = []
     dosage: str = LABEL_ABSENT["dosage"]
     # Verbatim Korean. The model measurably mistranslated a frequency

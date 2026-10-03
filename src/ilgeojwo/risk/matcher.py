@@ -36,9 +36,12 @@ _UNKNOWN_SEVERITY_SORTS_FIRST = -1
 # contain it, and normalize() does not remove it.
 _SEPARATOR = "\x00"
 
-# Below this length a single changed character is too weak a signal: it would fire
-# on ordinary text and teach her to ignore warnings. Longer spellings of the same
-# drug (인산코데인 for 코데인) still carry the fuzzy tier.
+# Default floor only. Below this length a single changed character is usually too
+# weak a signal. But length alone is the wrong discriminator — 이산화황 sits one
+# substitution from 이산화티타늄/이산화탄소/이산화규소, which are on a large share
+# of Korean tablets and drinks, while 코데인 is short AND high-severity AND fragile
+# to the commonest Korean misread (ㅔ/ㅐ). So each rule may override per pattern
+# via no_fuzzy / force_fuzzy, and the decision is reviewable in the rule file.
 _MIN_FUZZY_LENGTH = 4
 
 
@@ -94,14 +97,21 @@ def _one_substitution_away(needle: str, haystack: str) -> bool:
     return False
 
 
+def _fuzzy_eligible(rule: Rule, pattern: str) -> bool:
+    if pattern in rule.force_fuzzy:
+        return True
+    if pattern in rule.no_fuzzy:
+        return False
+    return len(normalize(pattern)) >= _MIN_FUZZY_LENGTH
+
+
 def _approximate_hits(rule: Rule, haystack: str) -> tuple[str, ...]:
     if not haystack:
         return ()
     found = []
     for pattern in _patterns(rule):
-        normalised = normalize(pattern)
-        if len(normalised) >= _MIN_FUZZY_LENGTH and _one_substitution_away(
-                normalised, haystack):
+        if _fuzzy_eligible(rule, pattern) and _one_substitution_away(
+                normalize(pattern), haystack):
             found.append(pattern)
     return tuple(found)
 
