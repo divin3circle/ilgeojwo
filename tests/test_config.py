@@ -31,3 +31,16 @@ def test_config_is_immutable():
     c = load_config(env={})
     with pytest.raises(dataclasses.FrozenInstanceError):
         c.llm_model = "something-else"
+
+
+def test_the_ocr_engine_is_also_a_config_value():
+    """The published PaddleOCR-VL transformers path is broken against every
+    transformers 5.x, so the working engine is the default and the other stays
+    selectable. Which engine reads the image must not be a code change."""
+    assert load_config(env={}).ocr_engine == "easyocr"
+
+
+def test_the_ocr_engine_can_be_switched_by_environment():
+    c = load_config(env={"ILGEOJWO_OCR_ENGINE": "paddleocr-vl"})
+    assert c.ocr_engine == "paddleocr-vl"
+    assert c.llm_model == "exaone3.5:2.4b"  # unchanged
