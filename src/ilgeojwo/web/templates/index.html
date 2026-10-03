@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>읽어줘</title>
+  <style>
+    :root { --bg:#faf9f7; --fg:#1d1b19; --muted:#6b6560; --line:#e3ddd6;
+            --card:#fff; --warn:#8c2f16; --warnbg:#fdf0ec; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#17161a; --fg:#f0ece6; --muted:#9a938c; --line:#2f2c33;
+              --card:#1f1e23; --warn:#ff9a7a; --warnbg:#2b1a16; } }
+    * { box-sizing:border-box }
+    body { margin:0; padding:24px 16px 64px; background:var(--bg); color:var(--fg);
+           font:16px/1.55 ui-sans-serif,system-ui,-apple-system,sans-serif;
+           max-width:620px; margin-inline:auto; }
+    h1 { font-size:1.6rem; margin:0 0 4px }
+    .sub { color:var(--muted); margin:0 0 24px; font-size:.9rem }
+    .lens { display:flex; gap:8px; margin-bottom:16px }
+    .lens label { flex:1; text-align:center; padding:10px; border:1px solid var(--line);
+                  border-radius:10px; cursor:pointer; background:var(--card) }
+    .lens input { display:none }
+    .lens input:checked + span { font-weight:600 }
+    .lens label:has(input:checked) { border-color:var(--fg) }
+    button, .file { width:100%; padding:14px; border-radius:10px; font-size:1rem;
+                    border:1px solid var(--line); background:var(--card);
+                    color:var(--fg); cursor:pointer }
+    button { background:var(--fg); color:var(--bg); border:0; margin-top:12px }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
+            padding:16px; margin-top:20px }
+    .row { display:flex; gap:12px; padding:8px 0; border-bottom:1px solid var(--line) }
+    .row:last-child { border:0 }
+    .k { color:var(--muted); min-width:120px; font-size:.85rem }
+    .v { flex:1 }
+    .warn { background:var(--warnbg); color:var(--warn); border-radius:10px;
+            padding:12px; margin-top:12px; font-weight:600 }
+    .disclaimer { color:var(--muted); font-size:.8rem; margin-top:12px;
+                  border-top:1px solid var(--line); padding-top:12px }
+    pre { white-space:pre-wrap; background:var(--bg); padding:12px;
+          border-radius:8px; font-size:.85rem; margin:0 }
+    details { margin-top:12px }
+  </style>
+</head>
+<body>
+  <h1>읽어줘</h1>
+  <p class="sub">Point your camera at it. Nothing leaves this laptop.</p>
+
+  <form id="f">
+    <div class="lens">
+      <label><input type="radio" name="lens" value="document" checked><span>Document</span></label>
+      <label><input type="radio" name="lens" value="label"><span>Medicine / label</span></label>
+    </div>
+    <input class="file" type="file" name="image" accept="image/*" capture="environment" required>
+    <button type="submit">Read it</button>
+  </form>
+
+  <div id="out"></div>
+
+<script>
+const f = document.getElementById('f'), out = document.getElementById('out');
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const row = (k, v) => v ? `<div class="row"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>` : '';
+
+f.addEventListener('submit', async e => {
+  e.preventDefault();
+  out.innerHTML = '<div class="card">Reading…</div>';
+  const r = await fetch('/scan', { method:'POST', body:new FormData(f) });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({detail: 'Something went wrong.'}));
+    out.innerHTML = `<div class="card"><div class="warn"><pre>${esc(err.detail)}</pre></div></div>`;
+    return;
+  }
+  const d = await r.json();
+  if (d.status === 'unreadable') {
+    out.innerHTML = `<div class="card"><div class="warn">${esc(d.message)}</div></div>`;
+    return;
+  }
+  const c = d.card;
+  out.innerHTML = `<div class="card">
+    ${row('What this is', c.doc_type)}
+    ${row('From', c.sender)}
+    ${row('You must', c.action)}
+    ${row('By', c.deadline || 'No date found')}
+    ${row('Amount', c.amount)}
+    ${row('Where', c.location)}
+    ${d.status === 'partial' ? '<div class="warn">Only partly understood — read the Korean below.</div>' : ''}
+    <details><summary>Original Korean</summary><pre>${esc(d.ocr_text)}</pre></details>
+  </div>`;
+});
+</script>
+</body>
+</html>
