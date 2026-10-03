@@ -271,3 +271,11 @@ def test_a_different_drug_is_still_rejected_despite_the_tolerance():
     card, _ = extract_label("성분 및 함량 이부프로편 2OOmg", FakeLlm(reply), RULES)
     assert card.ingredients_ko == []
     assert card.ingredients_unverified == ["세티리진염산염"]
+
+
+def test_truncation_never_weakens_the_risk_screening():
+    """The model sees a shortened document; the matcher must still see all of it,
+    or an ingredient printed late on a long label would stop being screened."""
+    buried = "가나다라마바사 " * 900 + " 성분 이부프로펜 200mg"
+    card, _ = extract_label(buried, FakeLlm("{}"), RULES)
+    assert [w["rule_id"] for w in card.warnings] == ["nsaid"]

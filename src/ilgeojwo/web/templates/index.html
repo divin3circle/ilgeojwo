@@ -265,6 +265,7 @@ f.addEventListener('submit', async e => {
   }
 
   out.innerHTML = `<div class="card">
+    ${c.untranslated ? '<div class="w w-medium">This could not be translated — the text below is as printed, in Korean. Try again, or ask someone to read it.</div>' : ''}
     <h3>${esc(c.doc_type)}</h3>
     <p class="meta">${esc(c.sender)}</p>
     <div class="due">

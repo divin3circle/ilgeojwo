@@ -20,6 +20,19 @@ _HANGUL = re.compile(r"[\uac00-\ud7a3]")
 # deliberately verbatim Korean and are excluded.
 _MUST_BE_ENGLISH = ("doc_type", "sender", "action")
 
+# How much scanned text the model is shown. A 6-page e-ticket yielded 10,035
+# characters and the 2.4B model returned nothing usable from it, twice, in four
+# minutes. Korean official documents put the identifying information and the
+# deadline at the top; the rest is terms and conditions. The matcher is NEVER
+# given the shortened text — it always screens everything.
+MAX_EXTRACT_CHARS = 3500
+
+
+def _for_model(ocr_text: str) -> str:
+    if len(ocr_text) <= MAX_EXTRACT_CHARS:
+        return ocr_text
+    return ocr_text[:MAX_EXTRACT_CHARS] + "\n[... rest of the document not shown ...]"
+
 
 def _still_korean(data: dict) -> bool:
     return any(_HANGUL.search(str(data.get(field) or "")) for field in _MUST_BE_ENGLISH)
@@ -71,7 +84,7 @@ def _to_card(data: dict, ocr_text: str = "") -> DocumentCard:
 def extract_document(ocr_text: str, llm: LlmClient) -> tuple[DocumentCard, str]:
     last: dict | None = None
     for prompt in (DOCUMENT, DOCUMENT_RETRY):
-        data = _parse_json(llm.complete(prompt.format(text=ocr_text)))
+        data = _parse_json(llm.complete(prompt.format(text=_for_model(ocr_text))))
         if data is None:
             continue
         last = data
@@ -199,7 +212,9 @@ def _to_label_card(data: dict, ocr_text: str, rules: tuple[Rule, ...]) -> LabelC
 def extract_label(ocr_text: str, llm: LlmClient,
                   rules: tuple[Rule, ...]) -> tuple[LabelCard, str]:
     for prompt in (LABEL, LABEL_RETRY):
-        if (data := _parse_json(llm.complete(prompt.format(text=ocr_text)))) is not None:
+        reply = llm.complete(prompt.format(text=_for_model(ocr_text)))
+        if (data := _parse_json(reply)) is not None:
+            # Full text, not the shortened one: screening never gets less input.
             return _to_label_card(data, ocr_text, rules), "ok"
     # Even with no usable model output at all, the box is still screened.
     return _to_label_card({}, ocr_text, rules), "partial"

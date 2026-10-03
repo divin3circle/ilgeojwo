@@ -171,3 +171,19 @@ def test_the_korean_deadline_text_is_not_mistaken_for_a_failed_translation():
     card, _ = extract_document("납부기한 2026년 10월 5일", llm)
     assert card.untranslated is False
     assert len(llm.prompts) == 1
+
+
+def test_a_very_long_document_is_shortened_before_the_model_sees_it():
+    """A 6-page e-ticket produced 10,035 characters of OCR. The model failed to
+    return usable JSON twice and the card came back empty after 256 seconds.
+    Pages 2-8 were terms and conditions drowning the signal on page 1."""
+    llm = FakeLlm(GOOD)
+    extract_document("출입국관리사무소 체류기간 연장허가 신청 " * 800, llm)
+    assert len(llm.prompts[0]) < 5000
+
+
+def test_a_short_document_is_passed_whole():
+    llm = FakeLlm(GOOD)
+    short = "출입국관리사무소 납부기한 2026년 10월 5일"
+    extract_document(short, llm)
+    assert short in llm.prompts[0]

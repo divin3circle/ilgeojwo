@@ -137,3 +137,9 @@ def test_the_page_offers_the_camera_as_its_own_obvious_choice(tmp_path):
     assert 'capture="environment"' in page
     assert "Take a photo" in page
     assert "Choose a file" in page
+
+
+def test_the_page_tells_her_when_a_card_could_not_be_translated(tmp_path):
+    page = _client(tmp_path, "x").get("/").text
+    assert "untranslated" in page
+    assert "could not be translated" in page.lower()

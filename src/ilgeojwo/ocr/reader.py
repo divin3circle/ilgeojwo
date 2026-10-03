@@ -25,9 +25,11 @@ _HANGUL_SYLLABLE = re.compile(r"[가-힣]")
 ENGINES = ("easyocr", "paddleocr-vl")
 
 # University, bank and airline correspondence arrives as PDF. Each page is
-# rendered and read in turn; the cap keeps one scan from taking an hour, since
-# OCR costs seconds per page and the e-ticket that prompted this was 8 pages.
-MAX_PDF_PAGES = 6
+# rendered and read in turn. The cap is low on purpose: reading 6 pages of an
+# 8-page e-ticket produced 10,035 characters, which the model could not use at
+# all, while page 1 alone carried the passenger, the flights and the total.
+# Korean official documents front-load what matters.
+MAX_PDF_PAGES = 3
 _PDF_RENDER_SCALE = 2.4  # roughly 170 dpi, enough for 9pt Korean
 
 # Deliberately very low. Confidence looked like the discriminator between real
