@@ -177,9 +177,14 @@ def test_a_very_long_document_is_shortened_before_the_model_sees_it():
     """A 6-page e-ticket produced 10,035 characters of OCR. The model failed to
     return usable JSON twice and the card came back empty after 256 seconds.
     Pages 2-8 were terms and conditions drowning the signal on page 1."""
+    from ilgeojwo.extract.extractor import MAX_EXTRACT_CHARS
+    long_document = "출입국관리사무소 체류기간 연장허가 신청 " * 800
     llm = FakeLlm(GOOD)
-    extract_document("출입국관리사무소 체류기간 연장허가 신청 " * 800, llm)
-    assert len(llm.prompts[0]) < 5000
+    extract_document(long_document, llm)
+    # Measure the document, not the prompt template around it.
+    assert "rest of the document not shown" in llm.prompts[0]
+    assert len(llm.prompts[0]) < len(long_document) / 2
+    assert MAX_EXTRACT_CHARS < len(long_document)
 
 
 def test_a_short_document_is_passed_whole():
@@ -228,3 +233,31 @@ def test_the_amount_and_deadline_survive_the_translation_pass():
     llm = FakeLlm(KOREAN_REPLY, KOREAN_REPLY, TRANSLATED)
     card, _ = extract_document("총액 KRW 212,400", llm)
     assert card.amount == "KRW 212,400"
+
+
+def test_the_prompt_describes_the_shape_the_scan_actually_arrives_in():
+    """Measured on a real e-ticket: the OCR returns one box per line, so a Korean
+    multi-column table arrives as a flat list with every label on its own line,
+    separated from its value. The model picked the staff member under 담당자 as
+    the sender, and translated the label 발행 as the action."""
+    llm = FakeLlm(ENGLISH_REPLY)
+    extract_document("...", llm)
+    prompt = llm.prompts[0]
+    assert "one line at a time" in prompt
+    assert "label" in prompt.lower()
+
+
+def test_the_prompt_says_what_a_sender_is_and_what_an_action_is():
+    llm = FakeLlm(ENGLISH_REPLY)
+    extract_document("...", llm)
+    prompt = llm.prompts[0]
+    assert "issued" in prompt.lower()
+    assert "No action needed" in prompt
+
+
+def test_an_informational_document_may_legitimately_have_no_action():
+    reply = json.dumps({"doc_type": "E-ticket confirmation", "sender": "Club Gaia",
+                        "action": "No action needed", "amount": "KRW 212,400"})
+    card, _ = extract_document("항공권", FakeLlm(reply))
+    assert card.action == "No action needed"
+    assert card.untranslated is False

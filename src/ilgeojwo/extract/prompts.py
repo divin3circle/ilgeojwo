@@ -3,13 +3,23 @@
 DOCUMENT = """You are reading text that was scanned from a Korean document.
 Extract only what is literally present. Do not add, infer, or assume anything.
 
+The scan reads one line at a time, so a table arrives flattened: a field label
+appears on one line and its value on the next. "담당자" then "조명자" means the
+person in charge is 조명자. Never return a label as if it were a value.
+
 The reader does not read Korean. Every value below marked "in English" MUST be
 written in English. Never copy Korean into those fields.
 
 Return a single JSON object with exactly these keys:
   doc_type      - what kind of document this is, in English
-  sender        - the issuing office or company, in English
-  action        - what the reader must do, in English, one sentence
+  sender        - the organisation that issued this, in English. It is usually
+                  the company or office named at the very top. It is NOT the
+                  name of a staff member, and NOT the word next to a label like
+                  담당자 or 발행처.
+  action        - what the reader must DO about this, in English, one sentence.
+                  Many documents are informational and require nothing: for
+                  those write exactly "No action needed". Never put a field
+                  label here.
   deadline_text - the deadline EXACTLY as written in Korean, or ""
   issued_text   - the issue date EXACTLY as written in Korean, or ""
   amount        - any amount payable as written, or ""
